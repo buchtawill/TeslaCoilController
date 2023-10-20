@@ -1,0 +1,12 @@
+../Core/Src/I2C_LCD.c:22:19:initLCD	32	static
+../Core/Src/I2C_LCD.c:58:19:setCursor	24	static
+../Core/Src/I2C_LCD.c:72:19:LCDPrint	32	static
+../Core/Src/I2C_LCD.c:84:19:LCDPrintNumber	40	static
+../Core/Src/I2C_LCD.c:110:19:LCDPrintAtPos	32	static
+../Core/Src/I2C_LCD.c:120:19:writeToDDRAMAddress	24	static
+../Core/Src/I2C_LCD.c:128:19:setDDRAMAddress	24	static
+../Core/Src/I2C_LCD.c:142:19:clearDisplay	24	static
+../Core/Src/I2C_LCD.c:155:19:writeToRegister	24	static
+../Core/Src/I2C_LCD.c:177:19:write4BitsToInstructionReg	32	static
+../Core/Src/I2C_LCD.c:188:19:write4BitsToDataReg	32	static
+../Core/Src/I2C_LCD.c:201:19:writeAByte	32	static
