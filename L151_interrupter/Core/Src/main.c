@@ -71,17 +71,17 @@ TIM_HandleTypeDef htim11;
 #define MODE_NUM 3
 
 //State within Burst mode
-#define B_FREQUENCY 0
-#define B_TON 1
-#define B_TOFF 2
-#define B_PLAY_PAUSE 3
-#define B_BACK 4
+#define B_FREQUENCY 	0
+#define B_TON 			1
+#define B_TOFF 			2
+#define B_PLAY_PAUSE 	3
+#define B_BACK 			4
 #define BURST_STATE_NUM 4
 
 //State within Fixed mode
-#define F_FREQUENCY 0
-#define F_PLAY_PAUSE 1
-#define F_BACK 2
+#define F_FREQUENCY 	0
+#define F_PLAY_PAUSE 	1
+#define F_BACK 			2
 #define FIXED_STATE_NUM 2
 
 // Change configuration with number state
@@ -91,14 +91,14 @@ TIM_HandleTypeDef htim11;
 
 
 /* Display constant Definition ------------------------------------------------------*/
-#define MAX_ROW 4
-#define MAX_CHAR_ON_SCREEN 19
-#define MAX_FILE_LENGTH 20
+#define MAX_ROW 			4
+#define MAX_CHAR_ON_SCREEN 	19
+#define MAX_FILE_LENGTH 	20
 #define MAX_FILENAME_LENGTH 30
 
-#define FREQ_DISP_POS 6
-#define T_ON_DISP_POS 6
-#define T_OFF_DISP_POS 7
+#define FREQ_DISP_POS 	6
+#define T_ON_DISP_POS 	6
+#define T_OFF_DISP_POS 	7
 
 
 /* USER CODE BEGIN PV */
@@ -319,6 +319,8 @@ void turnOffAllCoils() {
  */
 int main(void) {
 	/* USER CODE BEGIN 1 */
+	boolean updateTimeScroll = true;
+	uint32_t timeForScroll = 0;
 	/* USER CODE END 1 */
 
 	/* MCU Configuration--------------------------------------------------------*/
@@ -409,11 +411,11 @@ int main(void) {
 
 	/* USER CODE END 2 */
 
-	HAL_TIM_PWM_Start(&COIL1, COIL1_CH);	//IF 1
-	HAL_TIM_PWM_Start(&COIL2, COIL2_CH);	//IF 2
-	HAL_TIM_PWM_Start(&COIL3, COIL3_CH);	//IF 3
-	HAL_TIM_PWM_Start(&COIL4, COIL4_CH);	//IF 4
-	HAL_TIM_PWM_Start(&COIL5, COIL5_CH);	//IF 5
+	HAL_TIM_PWM_Start(&COIL1, COIL1_CH);	//IFe96 1
+	HAL_TIM_PWM_Start(&COIL2, COIL2_CH);	//IFe96 2
+	HAL_TIM_PWM_Start(&COIL3, COIL3_CH);	//IFe96 3
+	HAL_TIM_PWM_Start(&COIL4, COIL4_CH);	//IFe96 4
+	HAL_TIM_PWM_Start(&COIL5, COIL5_CH);	//IFe96 5
 	htim2.Instance->CCR1 = 0;
 	htim9.Instance->CCR2 = 0;
 	htim3.Instance->CCR1 = 0;
@@ -536,18 +538,29 @@ int main(void) {
 
 				// If the current selected song is longer than what the screen can display,
 				// give it scroll effect
+
 				if (strlen(fileNames[songNum]) > MAX_CHAR_ON_SCREEN) {
-					strncpy(displayedText, &fileNames[songNum][scrollPosition], MAX_CHAR_ON_SCREEN);
-					displayedText[MAX_CHAR_ON_SCREEN] = '\0';  // Null-terminate the string
+					//begin non blocking delay
+					if(updateTimeScroll == true){
+						updateTimeScroll = false;
+						timeForScroll = HAL_GetTick();
+						strncpy(displayedText, &fileNames[songNum][scrollPosition], MAX_CHAR_ON_SCREEN);
+						displayedText[MAX_CHAR_ON_SCREEN] = '\0';  // Null-terminate the string
 
-					// Display the portion on the LCD
-					LCDPrintAtPos(&lcd, displayedText, 1, songNum % MAX_ROW);
+						// Display the portion on the LCD
+						LCDPrintAtPos(&lcd, displayedText, 1, songNum % MAX_ROW);
 
-					// Increment the scroll position and wrap around
-					scrollPosition++;
-					if (scrollPosition > strlen(fileNames[songNum]) - MAX_CHAR_ON_SCREEN)
-						scrollPosition = 0;
-					HAL_Delay(750);
+						// Increment the scroll position and wrap around
+						scrollPosition++;
+						if (scrollPosition > strlen(fileNames[songNum]) - MAX_CHAR_ON_SCREEN)
+							scrollPosition = 0;
+					}
+					else{
+						if((HAL_GetTick() - timeForScroll) > 750){
+							updateTimeScroll = true;
+						}
+					}
+					//end nonblocking delay
 				}
 
 				// Scrolling up and down to choose the song
