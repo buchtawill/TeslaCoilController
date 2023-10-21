@@ -146,6 +146,11 @@ HAL_StatusTypeDef clearDisplay(LCD *dev){
 	return bruh;
 }
 
+HAL_StatusTypeDef LCDBlinkOff(LCD *dev);
+HAL_StatusTypeDef LCDBlinkOn(LCD *dev);
+HAL_StatusTypeDef LCDCursorOn(LCD *dev);
+HAL_StatusTypeDef LCDCursorOff(LCD *dev);
+
 /**
  * @brief	mid level function writes db0-db7 (byte) to a register (rs)
  * @param 	dev - pointer to the LCD object

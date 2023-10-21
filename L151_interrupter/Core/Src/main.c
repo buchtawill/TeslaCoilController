@@ -447,7 +447,7 @@ int main(void) {
 
     //The last option is always "BACK" to mode selection
     strncpy(fileNames[fileCount], "BACK", 30);
-
+//    (void)LCDBlinkOff(&lcd);
 
 
 	while (1) {
@@ -646,7 +646,7 @@ int main(void) {
 
 			// isPlaying = true
 			else {
-				//Print song information, instruction to return, and volumn
+				//Print song information, instruction to return, and volume
 				if (!printed) {
 					LCDPrintAtPos(&lcd, "Playing...", 0, 0);
 					strncpy(displayedText, &fileNames[songNum][0], MAX_CHAR_ON_SCREEN);
@@ -655,10 +655,16 @@ int main(void) {
 					LCDPrintAtPos(&lcd, "Click to return", 0, 2);
 					LCDPrintAtPos(&lcd, "Ontime/Vol:", 0, 3);
 					LCDPrintAtPos(&lcd, "us", 14, 3);
+					LCDPrintNumber(&lcd, onTime, 11, 3, 3);
+					setCursor(&lcd, 16, 3);
 					printed = true;
 				}
-				LCDPrintNumber(&lcd, onTime, 11, 3, 3);
-				setCursor(&lcd, 16, 3);
+				if(onTime != prevOnTime){
+					prevOnTime = onTime;
+					LCDPrintNumber(&lcd, onTime, 11, 3, 3);
+					setCursor(&lcd, 16, 3);
+				}
+
 
 				//Playing the song
 				//set the time the song started, and get the first event
@@ -682,6 +688,7 @@ int main(void) {
 					float velRatio = (float)velocity / 127.0;
 					uint8_t actualOnTime = velRatio * onTime;
 					setTimersAccordingly(track, freq, actualOnTime);
+					//setTimersAccordingly(track, freq, velocity);
 					if (eventCounter < numEvents){
 						fresult = f_read(&fil, &midiBuf[0], 6, &bytesRead);
 						eventCounter++;
