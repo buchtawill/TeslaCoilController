@@ -781,10 +781,15 @@ int main(void) {
 				if (time <= timeStarted + t_on + t_off) {
 					inCycle = true;
 					if (time <= timeStarted + t_on) {
-						setTimerFrequencyPulseWidth(&COIL1, frequency, onTime, COIL1_CH);
+						if(firstOpenDir || frequency != prevFrequency){
+							prevFrequency = frequency;
+							setTimerFrequencyPulseWidth(&COIL1, frequency, onTime, COIL1_CH);
+							firstOpenDir = false;
+						}
 					}
 					else {
 						setTimerFrequencyPulseWidth(&COIL1, 0, 0, COIL1_CH);
+						firstOpenDir = true;
 					}
 				}
 				else inCycle = false;
@@ -1051,7 +1056,12 @@ int main(void) {
  * Allows the user to change number (3 digits) by scrolling
  * Options are: frequency, t_on, t_off
  */
+boolean firstEntry = true;
 void changeNumber(uint16_t* number, uint16_t max, uint8_t printPosition) {
+	if(firstEntry == true){
+		firstEntry = false;
+		LCDCursorOffBlinkOn(&lcd);
+	}
 	switch (digit_mode) {
 	case HUNDRED_DIGIT:
 		digit = *number / 100;
@@ -1164,6 +1174,9 @@ void changeNumber(uint16_t* number, uint16_t max, uint8_t printPosition) {
 			buttonPushed = false;
 			submode = -1;
 			inSubmode = false;
+
+			firstEntry = true;
+			LCDCursorOffBlinkOff(&lcd);
 		}
 
 		break;
