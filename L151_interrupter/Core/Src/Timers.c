@@ -54,8 +54,10 @@ void setTimerFrequencyPulseWidth(TIM_HandleTypeDef* pTim, uint16_t freq, uint16_
 		//always round down
 		autoReloadReg = CPU_CLK / ((prescaler+1) * freq);
 
-		double usPerBit = ((double)(prescaler+1) / 32000000.0) * 1000000.0;
-		int bits = (int)((double)pulseWidth / usPerBit);
+		//float usPerBit = ((float)(prescaler+1) / 32000000.0) * 1000000.0;
+		//int bits = (int)((float)pulseWidth / usPerBit);
+		float usPerBit = (float)(prescaler+1) / 32.0;
+		uint32_t bits = (uint32_t)((float)pulseWidth / usPerBit);
 
 		pTim->Instance->ARR = autoReloadReg;
 		pTim->Instance->PSC = prescaler;

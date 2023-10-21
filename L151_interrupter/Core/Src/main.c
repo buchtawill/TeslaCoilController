@@ -177,6 +177,7 @@ static void MX_TIM7_Init(void);
 boolean coil1On = false, coil2On = false, coil3On = false, coil4On = false,
 		coil5On = false;
 uint16_t coil1Freq, coil2Freq, coil3Freq, coil4Freq, coil5Freq;
+//TODO: remake this ungodly function
 /**
  * @brief	given a track, set the corresponding timer's (coil's) frequency and pulse width
  * 			Will bump notes played at the same time down to the next coil. ex if coil1 is playing
@@ -674,6 +675,7 @@ int main(void) {
 					fresult = f_read(&fil, &midiBuf[0], 6, &bytesRead);
 					numEvents = numEventsSplit[0] | (numEventsSplit[1] << 8);
 					eventCounter++;
+					HAL_Delay(100);
 					timeStarted = time;
 				}
 
@@ -688,7 +690,7 @@ int main(void) {
 					float velRatio = (float)velocity / 127.0;
 					uint8_t actualOnTime = velRatio * onTime;
 					setTimersAccordingly(track, freq, actualOnTime);
-					//setTimersAccordingly(track, freq, velocity);
+//					setTimersAccordingly(track, freq, velocity);
 					if (eventCounter < numEvents){
 						fresult = f_read(&fil, &midiBuf[0], 6, &bytesRead);
 						eventCounter++;
