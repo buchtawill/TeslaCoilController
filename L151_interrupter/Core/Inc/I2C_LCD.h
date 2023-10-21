@@ -74,12 +74,14 @@ HAL_StatusTypeDef setCursor(LCD *dev, uint8_t col, uint8_t row);
 HAL_StatusTypeDef LCDPrint(LCD *dev, char *pString);
 HAL_StatusTypeDef LCDPrintAtPos(LCD *dev, char *pString, uint8_t col, uint8_t row);
 HAL_StatusTypeDef LCDPrintNumber(LCD *dev, uint16_t num, uint8_t col, uint8_t row, uint8_t spaceNum);
-HAL_StatusTypeDef LCDBlinkOff(LCD *dev);
-HAL_StatusTypeDef LCDBlinkOn(LCD *dev);
-HAL_StatusTypeDef LCDCursorOn(LCD *dev);
-HAL_StatusTypeDef LCDCursorOff(LCD *dev);
+
 HAL_StatusTypeDef LCDDisplayOn(LCD *dev);
 HAL_StatusTypeDef LCDDisplayOff(LCD *dev);
+
+HAL_StatusTypeDef LCDCursorOnBlinkOff(LCD *dev);
+HAL_StatusTypeDef LCDCursorOnBlinkOn(LCD *dev);
+HAL_StatusTypeDef LCDCursorOffBlinkOn(LCD *dev);
+HAL_StatusTypeDef LCDCursorOffBlinkOff(LCD *dev);
 
 //low level, bit pushing functions
 HAL_StatusTypeDef writeToDDRAMAddress(LCD *dev, uint8_t addr, uint8_t byte);

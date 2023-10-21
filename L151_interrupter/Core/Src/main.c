@@ -447,7 +447,7 @@ int main(void) {
 
     //The last option is always "BACK" to mode selection
     strncpy(fileNames[fileCount], "BACK", 30);
-//    (void)LCDBlinkOff(&lcd);
+    (void)LCDCursorOffBlinkOff(&lcd);
 
 
 	while (1) {

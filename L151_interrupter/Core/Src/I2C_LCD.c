@@ -31,8 +31,8 @@ HAL_StatusTypeDef initLCD(LCD *dev, I2C_HandleTypeDef *handle, uint8_t nRows, ui
 	HAL_Delay(50);
 	write4BitsToInstructionReg(dev, 0b0010);
 	HAL_Delay(50);
-//	write4BitsToInstructionReg(dev, 0b0010);
-//	HAL_Delay(50);
+	//	write4BitsToInstructionReg(dev, 0b0010);
+	//	HAL_Delay(50);
 
 	//clear display
 	stat |= writeToRegister(dev, 0b00000001, INSTRUCTION);
@@ -76,39 +76,39 @@ HAL_StatusTypeDef LCDPrint(LCD *dev, char *pString){
 		stat |= writeToRegister(dev, *pString, DATA);
 		pString++;
 		HAL_Delay(1);
-//		delayMicroseconds(50); //takes 37 microseconds
+		//		delayMicroseconds(50); //takes 37 microseconds
 	}
 	return stat;
 }
 
 HAL_StatusTypeDef LCDPrintNumber(LCD *dev, uint16_t num, uint8_t col, uint8_t row, uint8_t spaceNum){
 
-    int digits = 0;
-    uint16_t n = num;
-    char numberString[12];
+	int digits = 0;
+	uint16_t n = num;
+	char numberString[12];
 
-    while (n != 0) {
-        n /= 10;
-        digits++;
-    }
+	while (n != 0) {
+		n /= 10;
+		digits++;
+	}
 
-    if (num == 0) {
-        digits = 1;
-    }
+	if (num == 0) {
+		digits = 1;
+	}
 
-    sprintf(numberString, "%0*d", spaceNum , num);
+	sprintf(numberString, "%0*d", spaceNum , num);
 
-    HAL_StatusTypeDef stat = setCursor(dev, col, row);
+	HAL_StatusTypeDef stat = setCursor(dev, col, row);
 
-    stat |= LCDPrintAtPos(dev, numberString, col, row);
+	stat |= LCDPrintAtPos(dev, numberString, col, row);
 
 
 
-    return stat;
+	return stat;
 }
 
 HAL_StatusTypeDef LCDPrintAtPos(LCD *dev, char *pString, uint8_t col, uint8_t row){
-//	uint8_t len = strlen(pString);
+	//	uint8_t len = strlen(pString);
 	HAL_StatusTypeDef stat = setCursor(dev, col, row);
 	return stat | LCDPrint(dev, pString);
 }
@@ -146,10 +146,42 @@ HAL_StatusTypeDef clearDisplay(LCD *dev){
 	return bruh;
 }
 
-HAL_StatusTypeDef LCDBlinkOff(LCD *dev);
-HAL_StatusTypeDef LCDBlinkOn(LCD *dev);
-HAL_StatusTypeDef LCDCursorOn(LCD *dev);
-HAL_StatusTypeDef LCDCursorOff(LCD *dev);
+HAL_StatusTypeDef LCDCursorOnBlinkOff(LCD *dev){
+	uint8_t dataByte = 0b00001110;
+	HAL_StatusTypeDef bruh = writeToRegister(dev, dataByte, 0);
+	HAL_Delay(1);
+	return bruh;
+}
+HAL_StatusTypeDef LCDCursorOnBlinkOn(LCD *dev){
+	uint8_t dataByte = 0b00001111;
+	HAL_StatusTypeDef bruh = writeToRegister(dev, dataByte, 0);
+	HAL_Delay(1);
+	return bruh;
+}
+HAL_StatusTypeDef LCDCursorOffBlinkOn(LCD *dev){
+	uint8_t dataByte = 0b00001101;
+	HAL_StatusTypeDef bruh = writeToRegister(dev, dataByte, 0);
+	HAL_Delay(1);
+	return bruh;
+}
+HAL_StatusTypeDef LCDCursorOffBlinkOff(LCD *dev){
+	uint8_t dataByte = 0b00001100;
+	HAL_StatusTypeDef bruh = writeToRegister(dev, dataByte, 0);
+	HAL_Delay(1);
+	return bruh;
+}
+HAL_StatusTypeDef LCDDisplayOn(LCD *dev){
+	uint8_t dataByte = 0b00001100;
+	HAL_StatusTypeDef bruh = writeToRegister(dev, dataByte, 0);
+	HAL_Delay(1);
+	return bruh;
+}
+HAL_StatusTypeDef LCDDisplayOff(LCD *dev){
+	uint8_t dataByte = 0b00001000;
+	HAL_StatusTypeDef bruh = writeToRegister(dev, dataByte, 0);
+	HAL_Delay(1);
+	return bruh;
+}
 
 /**
  * @brief	mid level function writes db0-db7 (byte) to a register (rs)
@@ -158,12 +190,12 @@ HAL_StatusTypeDef LCDCursorOff(LCD *dev);
  * @param	rs - register select. 1 for data, 0 for instruction
  */
 HAL_StatusTypeDef writeToRegister(LCD *dev, uint8_t byte, uint8_t rs){
-//	uint8_t first  = (byte & 0xF0)        | rs<<RS | 1<<BT;
-//	uint8_t second = ((byte & 0x0F) << 4) | rs<<RS | 1<<BT;
-//	first  &= ~(1<<RW);
-//	second &= ~(1<<RW);	//make sure write is high
-//	HAL_StatusTypeDef bruh = writeAByte(dev, first);
-//	bruh |= writeAByte(dev, second);
+	//	uint8_t first  = (byte & 0xF0)        | rs<<RS | 1<<BT;
+	//	uint8_t second = ((byte & 0x0F) << 4) | rs<<RS | 1<<BT;
+	//	first  &= ~(1<<RW);
+	//	second &= ~(1<<RW);	//make sure write is high
+	//	HAL_StatusTypeDef bruh = writeAByte(dev, first);
+	//	bruh |= writeAByte(dev, second);
 	HAL_StatusTypeDef bruh = HAL_OK;
 	if(rs == INSTRUCTION){
 		bruh = write4BitsToInstructionReg(dev, (byte & 0xF0) >> 4);

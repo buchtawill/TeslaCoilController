@@ -68,8 +68,8 @@ all: main-build
 main-build: L151_interrupter.elf secondary-outputs
 
 # Tool invocations
-L151_interrupter.elf L151_interrupter.map: $(OBJS) $(USER_OBJS) C:\Users\Cather\ Zhang\Desktop\Tesla\ Coil\ Controller\L151_interrupter\STM32L151CBTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "L151_interrupter.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"C:\Users\Cather Zhang\Desktop\Tesla Coil Controller\L151_interrupter\STM32L151CBTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="L151_interrupter.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+L151_interrupter.elf L151_interrupter.map: $(OBJS) $(USER_OBJS) C:\Users\bucht\OneDrive\Desktop\TeslaCoilController\L151_interrupter\STM32L151CBTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "L151_interrupter.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"C:\Users\bucht\OneDrive\Desktop\TeslaCoilController\L151_interrupter\STM32L151CBTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="L151_interrupter.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
