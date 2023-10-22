@@ -23,7 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "W25X40CL.h"
+//#include "W25X40CL.h"
 #include "usbd_cdc_if.h"
 #include "string.h"
 #include "Timers.h"
@@ -67,7 +67,7 @@ TIM_HandleTypeDef htim11;
 
 
 /* USER CODE BEGIN PV */
-W25X40CL flash;
+//W25X40CL flash;
 LCD lcd;
 uint64_t micros = 0;
 int16_t rotaryVal = 0, prevRotaryVal = 0;
@@ -246,6 +246,214 @@ void setTimersAccordingly(uint8_t coil, uint16_t freq, uint8_t velocity) {
 				setTimerFrequencyPulseWidth(&COIL3, 0, 0, COIL3_CH);
 				setTimerFrequencyPulseWidth(&COIL4, 0, 0, COIL4_CH);
 				setTimerFrequencyPulseWidth(&COIL5, 0, 0, COIL5_CH);
+			}
+			break;
+		} //end of switch
+	} //end if velocity == 0
+}
+
+TIM_HandleTypeDef *findTimForThisCombo(uint8_t track, uint16_t freq, uint8_t velocity){
+	//if velocity is 0, turn off that coil
+	//if velocity is not 0, push the note down the chain
+	//scaling not yet implemented
+	if (velocity != 0) {
+		switch (track) {
+		case 1:
+			if (!coil1On) {
+				//setTimerFrequencyPulseWidth(&COIL1, freq, velocity, COIL1_CH);
+				coil1On = true;
+				coil1Freq = freq;
+				return &COIL1;
+			} else
+				findTimForThisCombo(2, freq, velocity);
+			break;
+		case 2:
+			if (!coil2On) {
+				//setTimerFrequencyPulseWidth(&COIL2, freq, velocity, COIL2_CH);
+				coil2On = true;
+				coil2Freq = freq;
+				return &COIL2;
+			} else
+				findTimForThisCombo(3, freq, velocity);
+			break;
+		case 3:
+			if (!coil3On) {
+//				setTimerFrequencyPulseWidth(&COIL3, freq, velocity, COIL3_CH);
+				coil3On = true;
+				coil3Freq = freq;
+				return &COIL3;
+			} else
+				findTimForThisCombo(4, freq, velocity);
+			break;
+		case 4:
+			if (!coil4On) {
+//				setTimerFrequencyPulseWidth(&COIL4, freq, velocity, COIL4_CH);
+				coil4On = true;
+				coil4Freq = freq;
+				return &COIL4;
+			} else
+				findTimForThisCombo(5, freq, velocity);
+			break;
+		case 5:
+			if (!coil5On) {
+//				setTimerFrequencyPulseWidth(&COIL5, freq, velocity, COIL5_CH);
+				coil5On = true;
+				coil5Freq = freq;
+				return &COIL5;
+			}
+			break;
+		}
+	}			//end if (velocity != 0)
+	else if (velocity == 0) {
+		switch (track) {
+		case 1:
+			if (coil1On && coil1Freq == freq) {
+				//setTimerFrequencyPulseWidth(&COIL1, 0, 0, COIL1_CH);
+				coil1On = false;
+				coil1Freq = 0;
+				return &COIL1;
+			} else
+				findTimForThisCombo(2, freq, 0);
+			break;
+		case 2:
+			if (coil2On && coil2Freq == freq) {
+//				setTimerFrequencyPulseWidth(&COIL2, 0, 0, COIL2_CH);
+				coil2On = false;
+				coil2Freq = 0;
+				return &COIL2;
+			} else
+				findTimForThisCombo(3, freq, 0);
+			break;
+		case 3:
+			if (coil3On && coil3Freq == freq) {
+//				setTimerFrequencyPulseWidth(&COIL3, 0, 0, COIL3_CH);
+				coil3On = false;
+				coil3Freq = 0;
+				return &COIL3;
+			} else
+				findTimForThisCombo(4, freq, 0);
+			break;
+		case 4:
+			if (coil4On && coil4Freq == freq) {
+//				setTimerFrequencyPulseWidth(&COIL4, 0, 0, COIL4_CH);
+				coil4On = false;
+				coil4Freq = 0;
+				return &COIL4;
+			} else
+				findTimForThisCombo(5, freq, 0);
+			break;
+		case 5:
+			if (coil5On && coil5Freq == freq) {
+//				setTimerFrequencyPulseWidth(&COIL5, 0, 0, COIL5_CH);
+				coil5On = false;
+				coil5Freq = 0;
+				return &COIL4;
+			} else {	//I could have it wrap around, but no chances!!
+//				setTimerFrequencyPulseWidth(&COIL1, 0, 0, COIL1_CH);
+//				setTimerFrequencyPulseWidth(&COIL2, 0, 0, COIL2_CH);
+//				setTimerFrequencyPulseWidth(&COIL3, 0, 0, COIL3_CH);
+//				setTimerFrequencyPulseWidth(&COIL4, 0, 0, COIL4_CH);
+//				setTimerFrequencyPulseWidth(&COIL5, 0, 0, COIL5_CH);
+			}
+			break;
+		} //end of switch
+	} //end if velocity == 0
+}
+
+void setTimersFast(uint8_t coil, uint8_t freq, uint8_t velocity){
+	//if velocity is 0, turn off that coil
+	//if velocity is not 0, push the note down the chain
+	//scaling not yet implemented
+	if (velocity != 0) {
+		switch (coil) {
+		case 1:
+			if (!coil1On) {
+				setTimerFreqPulseFAST(&COIL1, freq, velocity, COIL1_CH);
+				coil1On = true;
+				coil1Freq = freq;
+			} else
+				setTimersFast(2, freq, velocity);
+			break;
+		case 2:
+			if (!coil2On) {
+				setTimerFreqPulseFAST(&COIL2, freq, velocity, COIL2_CH);
+				coil2On = true;
+				coil2Freq = freq;
+			} else
+				setTimersFast(3, freq, velocity);
+			break;
+		case 3:
+			if (!coil3On) {
+				setTimerFreqPulseFAST(&COIL3, freq, velocity, COIL3_CH);
+				coil3On = true;
+				coil3Freq = freq;
+			} else
+				setTimersFast(4, freq, velocity);
+			break;
+		case 4:
+			if (!coil4On) {
+				setTimerFreqPulseFAST(&COIL4, freq, velocity, COIL4_CH);
+				coil4On = true;
+				coil4Freq = freq;
+			} else
+				setTimersFast(5, freq, velocity);
+			break;
+		case 5:
+			if (!coil5On) {
+				setTimerFreqPulseFAST(&COIL5, freq, velocity, COIL5_CH);
+				coil5On = true;
+				coil5Freq = freq;
+			}
+			//uncommenting the else statement below will create a loop
+			//else setTimersAccordingly(1, freq, velocity);
+			break;
+		}
+	}			//end if (velocity != 0)
+	else if (velocity == 0) {
+		switch (coil) {
+		case 1:
+			if (coil1On && coil1Freq == freq) {
+				setTimerFreqPulseFAST(&COIL1, 0, 0, COIL1_CH);
+				coil1On = false;
+				coil1Freq = 0;
+			} else
+				setTimersFast(2, freq, 0);
+			break;
+		case 2:
+			if (coil2On && coil2Freq == freq) {
+				setTimerFreqPulseFAST(&COIL2, 0, 0, COIL2_CH);
+				coil2On = false;
+				coil2Freq = 0;
+			} else
+				setTimersFast(3, freq, 0);
+			break;
+		case 3:
+			if (coil3On && coil3Freq == freq) {
+				setTimerFreqPulseFAST(&COIL3, 0, 0, COIL3_CH);
+				coil3On = false;
+				coil3Freq = 0;
+			} else
+				setTimersFast(4, freq, 0);
+			break;
+		case 4:
+			if (coil4On && coil4Freq == freq) {
+				setTimerFreqPulseFAST(&COIL4, 0, 0, COIL4_CH);
+				coil4On = false;
+				coil4Freq = 0;
+			} else
+				setTimersFast(5, freq, 0);
+			break;
+		case 5:
+			if (coil5On && coil5Freq == freq) {
+				setTimerFreqPulseFAST(&COIL5, 0, 0, COIL5_CH);
+				coil5On = false;
+				coil5Freq = 0;
+			} else {	//I could have it wrap around, but no chances!!
+				setTimerFreqPulseFAST(&COIL1, 0, 0, COIL1_CH);
+				setTimerFreqPulseFAST(&COIL2, 0, 0, COIL2_CH);
+				setTimerFreqPulseFAST(&COIL3, 0, 0, COIL3_CH);
+				setTimerFreqPulseFAST(&COIL4, 0, 0, COIL4_CH);
+				setTimerFreqPulseFAST(&COIL5, 0, 0, COIL5_CH);
 			}
 			break;
 		} //end of switch
@@ -518,27 +726,27 @@ int main(void) {
 
 			switch (submode) {
 
-				case B_FREQUENCY:
-					inSubmode = true;
-					changeNumber(&frequency, MAX_FREQUENCY, FREQ_DISP_POS);
+			case B_FREQUENCY:
+				inSubmode = true;
+				changeNumber(&frequency, MAX_FREQUENCY, FREQ_DISP_POS);
 
-					break;
+				break;
 
-				case B_TON:
-					inSubmode = true;
-					changeNumber(&t_on, MAX_TIME_ON, T_ON_DISP_POS);
+			case B_TON:
+				inSubmode = true;
+				changeNumber(&t_on, MAX_TIME_ON, T_ON_DISP_POS);
 
 
-					break;
+				break;
 
-				case B_TOFF:
-					inSubmode = true;
-					changeNumber(&t_off, MAX_TIME_OFF, T_OFF_DISP_POS);
+			case B_TOFF:
+				inSubmode = true;
+				changeNumber(&t_off, MAX_TIME_OFF, T_OFF_DISP_POS);
 
-					break;
+				break;
 
-				default:
-					break;
+			default:
+				break;
 			}
 
 			if (!inSubmode) {
@@ -1841,64 +2049,88 @@ void SDModeChooseSong(){
 	}
 }
 
+void SDDealWithScreen(){
+	//Print song information, instruction to return, and volume
+	if (!printed) {
+		LCDPrintAtPos(&lcd, "Playing...", 0, 0);
+		strncpy(displayedText, &fileNames[songNum][0], MAX_CHAR_ON_SCREEN);
+		displayedText[MAX_CHAR_ON_SCREEN] = '\0';
+		LCDPrintAtPos(&lcd, displayedText, 1, 1);
+		LCDPrintAtPos(&lcd, "Click to return", 0, 2);
+		LCDPrintAtPos(&lcd, "Ontime/Vol:", 0, 3);
+		LCDPrintAtPos(&lcd, "us", 14, 3);
+		LCDPrintNumber(&lcd, onTime, 11, 3, 3);
+		setCursor(&lcd, 16, 3);
+		printed = true;
+	}
+	if(onTime != prevOnTime){
+		prevOnTime = onTime;
+		LCDPrintNumber(&lcd, onTime, 11, 3, 3);
+		setCursor(&lcd, 16, 3);
+	}
+}
+
+#define SD_GET_FIRST	0
+#define SD_FETCH_NEXT	1
+#define	SD_CALC_NEXT	2
+#define SD_WAIT_NEXT	3
+#define SD_READ_ERR		4
+
+typedef struct noteEvent{
+	uint32_t timeOfEvent, bitsForPWM;
+	uint8_t track;
+	uint8_t noteNum;
+	uint16_t frequency, prescaler, autoReloadReg;
+	uint8_t velocity;
+}NoteEvent;
+
+uint8_t sdModeState = SD_GET_FIRST, track, noteNum;
+uint32_t tNext;
+NoteEvent nextEvent;
+float velRatio;
+uint16_t actualOnTimeSD;
+
+TIM_HandleTypeDef *doThisCoil;
+
 void SDMode(){
 	if (!isDirOpen) {
 		fresult = f_opendir(&dir, "");
 		isDirOpen = true;
 	}
-	if (!isPlaying) {
-		SDModeChooseSong();
 
-	}
+	if (!isPlaying) SDModeChooseSong();
 
 	// isPlaying = true
 	else {
-		//Print song information, instruction to return, and volume
-		if (!printed) {
-			LCDPrintAtPos(&lcd, "Playing...", 0, 0);
-			strncpy(displayedText, &fileNames[songNum][0], MAX_CHAR_ON_SCREEN);
-			displayedText[MAX_CHAR_ON_SCREEN] = '\0';
-			LCDPrintAtPos(&lcd, displayedText, 1, 1);
-			LCDPrintAtPos(&lcd, "Click to return", 0, 2);
-			LCDPrintAtPos(&lcd, "Ontime/Vol:", 0, 3);
-			LCDPrintAtPos(&lcd, "us", 14, 3);
-			LCDPrintNumber(&lcd, onTime, 11, 3, 3);
-			setCursor(&lcd, 16, 3);
-			printed = true;
-		}
-		if(onTime != prevOnTime){
-			prevOnTime = onTime;
-			LCDPrintNumber(&lcd, onTime, 11, 3, 3);
-			setCursor(&lcd, 16, 3);
-		}
-
-
-		//Playing the song
-		//set the time the song started, and get the first event
-		if(timeStarted==0){
+		SDDealWithScreen();
+		switch(sdModeState){
+		case SD_GET_FIRST:
 			f_open(&fil, fileNames[songNum], FA_READ);
 			fresult = f_read(&fil, &numEventsSplit[0], 2, &bytesRead);
 			fresult = f_read(&fil, &midiBuf[0], 6, &bytesRead);
 			numEvents = numEventsSplit[0] | (numEventsSplit[1] << 8);
 			eventCounter++;
+			nextEvent.timeOfEvent = (midiBuf[1]) | (midiBuf[2]<<8) | (midiBuf[3]<<16);
+			nextEvent.noteNum = midiBuf[4];
+			nextEvent.frequency = noteFreq[midiBuf[4]];
+			nextEvent.track = midiBuf[0];
+			nextEvent.velocity = midiBuf[5];
+//			SDDealWithScreen();
 			HAL_Delay(1000);
+
+			sdModeState = SD_CALC_NEXT;
 			timeStarted = time;
-		}
-
-		uint32_t tNext = (midiBuf[1]) | (midiBuf[2]<<8) | (midiBuf[3]<<16);
-		if(tNext <= (time-timeStarted)){
-			//if an event happened, get the next event
-			uint8_t track = midiBuf[0];
-			uint16_t freq = noteFreq[midiBuf[4]];
-			uint8_t velocity = midiBuf[5];
-
-			float velRatio = (float)velocity / 127.0;
-			uint8_t actualOnTime = velRatio * onTime;
-			setTimersAccordingly(track, freq, actualOnTime);
-			//					setTimersAccordingly(track, freq, velocity);
+			break;
+		case SD_FETCH_NEXT:
 			if (eventCounter < numEvents){
 				fresult = f_read(&fil, &midiBuf[0], 6, &bytesRead);
+				nextEvent.timeOfEvent = (midiBuf[1]) | (midiBuf[2]<<8) | (midiBuf[3]<<16);
+				nextEvent.noteNum = midiBuf[4];
+				nextEvent.frequency = noteFreq[midiBuf[4]];
+				nextEvent.track = midiBuf[0];
+				nextEvent.velocity = midiBuf[5];
 				eventCounter++;
+				sdModeState = SD_CALC_NEXT;
 			}
 			else {
 				turnOffAllCoils();
@@ -1910,12 +2142,59 @@ void SDMode(){
 				printed = false;
 
 				isPlaying = false;
+				sdModeState = SD_GET_FIRST;
 			}
-			// Must wait so the code does not loop around before Hal_GetTick increases
-			HAL_Delay(1);
+
+			break;
+		case SD_CALC_NEXT:
+
+			//(velocity / 127) * onTime
+			actualOnTimeSD = (nextEvent.velocity * onTime) >> 7;
+			if(actualOnTimeSD > MAX_PULSE_WIDTH) actualOnTimeSD = MAX_PULSE_WIDTH;
+			if(nextEvent.frequency > MAX_FREQUENCY) nextEvent.frequency = MAX_FREQUENCY;
+
+			if(nextEvent.frequency == 1)        nextEvent.prescaler = 512 - 1;
+			else if(nextEvent.frequency <= 3)   nextEvent.prescaler = 256 - 1;
+			else if(nextEvent.frequency <= 7)   nextEvent.prescaler = 128 - 1;
+			else if(nextEvent.frequency <= 15)  nextEvent.prescaler = 64 - 1;
+			else if(nextEvent.frequency <= 32)  nextEvent.prescaler = 32 - 1;
+			else if(nextEvent.frequency <= 63)  nextEvent.prescaler = 16 - 1;
+			else if(nextEvent.frequency <= 127) nextEvent.prescaler = 8 - 1;
+			else if(nextEvent.frequency <= 255) nextEvent.prescaler = 4 - 1;
+			else if(nextEvent.frequency <= 511) nextEvent.prescaler = 2 - 1;
+			else nextEvent.prescaler = 1 - 1;
+
+			nextEvent.autoReloadReg = CPU_CLK / ((nextEvent.prescaler+1) * nextEvent.frequency);
+			float usPerBit = (float)(nextEvent.prescaler+1) / 32.0; //will get optimized by compiler
+			nextEvent.bitsForPWM = (uint32_t)((float)actualOnTimeSD / usPerBit);
+			sdModeState = SD_WAIT_NEXT;
+			break;
+
+		case SD_WAIT_NEXT:
+			if((time - timeStarted > nextEvent.timeOfEvent)){
+				doThisCoil = findTimForThisCombo(nextEvent.track, nextEvent.frequency, nextEvent.velocity);
+				if(nextEvent.velocity > 0){
+					doThisCoil->Instance->CCR1 = 0;
+					doThisCoil->Instance->CCR2 = 0;
+					__disable_irq();
+					doThisCoil->Instance->ARR = nextEvent.autoReloadReg;
+					doThisCoil->Instance->PSC = nextEvent.prescaler;
+					doThisCoil->Instance->CCR1 = nextEvent.bitsForPWM;
+					doThisCoil->Instance->CCR2 = nextEvent.bitsForPWM;
+					__enable_irq();
+				}
+				else{
+					doThisCoil->Instance->CCR1 = 0;
+					doThisCoil->Instance->CCR2 = 0;
+				}
+				sdModeState = SD_FETCH_NEXT;
+			}
+			break;
+
+		case SD_READ_ERR:
+
+			break;
 		}
-
-
 
 		// Return to song select
 		if (buttonPushed) {
@@ -1930,10 +2209,11 @@ void SDMode(){
 			printed = false;
 
 			isPlaying = false;
-
+			sdModeState = SD_GET_FIRST;
 		}
 
 	}
+
 
 
 }
@@ -1952,6 +2232,53 @@ void Error_Handler(void) {
 	}
 	/* USER CODE END Error_Handler_Debug */
 }
+
+//		//Playing the song
+//		//set the time the song started, and get the first event
+//		if(timeStarted==0){
+//			f_open(&fil, fileNames[songNum], FA_READ);
+//			fresult = f_read(&fil, &numEventsSplit[0], 2, &bytesRead);
+//			fresult = f_read(&fil, &midiBuf[0], 6, &bytesRead);
+//			numEvents = numEventsSplit[0] | (numEventsSplit[1] << 8);
+//			eventCounter++;
+//			HAL_Delay(1000);
+//			timeStarted = time;
+//		}
+//
+//		uint32_t tNext = (midiBuf[1]) | (midiBuf[2]<<8) | (midiBuf[3]<<16);
+//		if(tNext <= (time-timeStarted)){
+//			//if an event happened, get the next event
+//			uint8_t track = midiBuf[0];
+//			uint16_t freq = noteFreq[midiBuf[4]];
+//			uint8_t velocity = midiBuf[5];
+//
+//			float velRatio = (float)velocity / 127.0;
+//			uint8_t actualOnTime = velRatio * onTime;
+//			setTimersAccordingly(track, freq, actualOnTime);
+//			//setTimersFast(track, midiBuf[4], actualOnTime);
+//			//					setTimersAccordingly(track, freq, velocity);
+//			if (eventCounter < numEvents){
+//				fresult = f_read(&fil, &midiBuf[0], 6, &bytesRead);
+//				eventCounter++;
+//			}
+//			else {
+//				turnOffAllCoils();
+//				eventCounter = 0;
+//				timeStarted = 0;
+//				fresult = f_close(&fil);
+//
+//				clearDisplay(&lcd);
+//				printed = false;
+//
+//				isPlaying = false;
+//			}
+//			// Must wait so the code does not loop around before Hal_GetTick increases
+//			HAL_Delay(1);
+//		}
+//		//else we are waiting for the next note to happen, so calculate register values NOW
+//		else{
+//
+//		}
 
 #ifdef  USE_FULL_ASSERT
 /**

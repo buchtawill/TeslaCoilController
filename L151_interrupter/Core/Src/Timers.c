@@ -21,8 +21,55 @@
 		523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988 //5's
 };
  */
-void setTimerFreqPulseFAST(TIM_HandleTypeDef* pTim, uint8_t note, uint8_t onTime){
-
+void setTimerFreqPulseFAST(TIM_HandleTypeDef* pTim, uint8_t note, uint8_t pulseWidth, uint32_t channel){
+//	pTim->Instance->CCR1 = 0;
+//	pTim->Instance->CCR2 = 0;
+//	__disable_irq();
+//	if(pulseWidth != 0 && freq > 0){
+//
+//		uint16_t autoReloadReg, prescaler;
+//		//set bounds
+//		//if(freq>MAX_FREQUENCY) freq = MAX_FREQUENCY;
+//		if(noteFreq[note] > MAX_FREQUENCY) note = 58;
+//
+//		int minPulseWidth = 16/freq;	//for low frequencies. We only have an accuracy of 16us at 1 Hz
+//		if(minPulseWidth < 5)minPulseWidth = 5;
+//
+//		if(pulseWidth > MAX_PULSE_WIDTH) pulseWidth = MAX_PULSE_WIDTH;
+//		if(pulseWidth < minPulseWidth) pulseWidth = minPulseWidth;
+//
+//		//Precalculated prescalers. We could calculate these every function call,
+//		//but why waste the time.
+//		if(freq == 1)        prescaler = 512 - 1;
+//		else if(freq <= 3)   prescaler = 256-1;
+//		else if(freq <= 7)   prescaler = 128-1;
+//		else if(freq <= 15)  prescaler = 64-1;
+//		else if(freq <= 32)  prescaler = 32-1;
+//		else if(freq <= 63)  prescaler = 16-1;
+//		else if(freq <= 127) prescaler = 8-1;
+//		else if(freq <= 255) prescaler = 4-1;
+//		else if(freq <= 511) prescaler = 2-1;
+//		else prescaler = 1-1;
+//
+//		//always round down
+//		autoReloadReg = CPU_CLK / ((prescaler+1) * freq);
+//
+//		//float usPerBit = ((float)(prescaler+1) / 32000000.0) * 1000000.0;
+//		//int bits = (int)((float)pulseWidth / usPerBit);
+//		float usPerBit = (float)(prescaler+1) / 32.0;
+//		uint32_t bits = (uint32_t)((float)pulseWidth / usPerBit);
+//
+//		pTim->Instance->ARR = autoReloadReg;
+//		pTim->Instance->PSC = prescaler;
+//		if(channel == TIM_CHANNEL_1)     pTim->Instance->CCR1 = bits;
+//		else if(channel == TIM_CHANNEL_2)pTim->Instance->CCR2 = bits;
+//	}
+//	else{
+//		pTim->Instance->CCR1 = 0;
+//		pTim->Instance->CCR2 = 0;
+//		//		HAL_TIM_PWM_Stop(ptim, channel);
+//	}
+//	__enable_irq();
 }
 
 /**
