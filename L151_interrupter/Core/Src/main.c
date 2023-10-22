@@ -1975,8 +1975,7 @@ void SDModeChooseSong(){
 		LCDPrintAtPos(&lcd, " ", 0, songNum % MAX_ROW);
 
 		//Move down
-		if (rotaryVal > prevRotaryVal)
-		{
+		if (rotaryVal > prevRotaryVal){
 			//We need to go to a new page, so display need to refresh
 			if (songNum % MAX_ROW == MAX_ROW-1) printed = false;
 
@@ -2017,11 +2016,12 @@ void SDModeChooseSong(){
 			}
 
 			if (songNum == 0) {
-				songNum = (int)(fileCount / MAX_ROW) * MAX_ROW;
+				//songNum = (int)(fileCount / MAX_ROW) * MAX_ROW;
+				songNum = fileCount;
 			}
-			else if (songNum % MAX_ROW == 0) {
-				songNum -= MAX_ROW;
-			}
+//			else if (songNum % MAX_ROW == 0) {
+//				songNum -= MAX_ROW;
+//			}
 			else {
 				songNum --;
 			}
