@@ -1,3 +1,0 @@
-../Core/Src/Timers.c:24:6:setTimerFreqPulseFAST	24	static
-../Core/Src/Timers.c:81:6:setTimerFrequencyPulseWidth	48	static,ignoring_inline_asm
-../Core/Src/Timers.c:140:6:stopTimer	16	static
