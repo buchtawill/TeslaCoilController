@@ -82,11 +82,11 @@ boolean buttonPushed = false;
 
 uint16_t noteFreq[60] = {
 		//c,      c#,     d,      d#,     e,      f,      f#,     G,      g#,     a,      a#,     b
-		33, 35, 37, 39, 41, 44, 46, 49, 52, 55, 58, 61, //1's
-		65, 69, 73, 78, 82, 87, 93, 98, 104, 110, 117, 123, //2's
-		131, 139, 147, 156, 165, 175, 185, 196, 208, 220, 233, 247, //3's
-		262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494, //4's
-		523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988 //5's
+		 33,      35,     37,     39,     41,     44,     46,     49,     52,     55,     58,     61, //1's
+		 65,      69,     73,     78,     82,     87,     93,     98,     104,    110,    117,    123, //2's
+		 131,     139,    147,    156,    165,    175,    185,    196,    208,    220,    233,    247, //3's
+		 262,     277,    294,    311,    330,    349,    370,    392,    415,    440,    466,    494, //4's
+		 523,     554,    587,    622,    659,    698,    740,    784,    831,    880,    932,    988 //5's
 };
 
 FATFS fs;
@@ -2107,12 +2107,20 @@ void SDMode(){
 		case SD_GET_FIRST:
 			f_open(&fil, fileNames[songNum], FA_READ);
 			fresult = f_read(&fil, &numEventsSplit[0], 2, &bytesRead);
+			if(fresult != FR_OK){
+				sdModeState = SD_READ_ERR;
+				break;
+			}
 			fresult = f_read(&fil, &midiBuf[0], 6, &bytesRead);
+			if(fresult != FR_OK){
+				sdModeState = SD_READ_ERR;
+				break;
+			}
 			numEvents = numEventsSplit[0] | (numEventsSplit[1] << 8);
 			eventCounter++;
 			nextEvent.timeOfEvent = (midiBuf[1]) | (midiBuf[2]<<8) | (midiBuf[3]<<16);
 			nextEvent.noteNum = midiBuf[4];
-			nextEvent.frequency = noteFreq[midiBuf[4]];
+			nextEvent.frequency = noteFreq[midiBuf[4]-12];
 			nextEvent.track = midiBuf[0];
 			nextEvent.velocity = midiBuf[5];
 //			SDDealWithScreen();
@@ -2124,9 +2132,13 @@ void SDMode(){
 		case SD_FETCH_NEXT:
 			if (eventCounter < numEvents){
 				fresult = f_read(&fil, &midiBuf[0], 6, &bytesRead);
+				if(fresult != FR_OK){
+					sdModeState = SD_READ_ERR;
+					break;
+				}
 				nextEvent.timeOfEvent = (midiBuf[1]) | (midiBuf[2]<<8) | (midiBuf[3]<<16);
 				nextEvent.noteNum = midiBuf[4];
-				nextEvent.frequency = noteFreq[midiBuf[4]];
+				nextEvent.frequency = noteFreq[midiBuf[4]-12];
 				nextEvent.track = midiBuf[0];
 				nextEvent.velocity = midiBuf[5];
 				eventCounter++;
@@ -2147,7 +2159,7 @@ void SDMode(){
 
 			break;
 		case SD_CALC_NEXT:
-
+			//uint32_t tBeforeCalc = HAL_GetTick();
 			//(velocity / 127) * onTime
 			actualOnTimeSD = (nextEvent.velocity * onTime) >> 7;
 			if(actualOnTimeSD > MAX_PULSE_WIDTH) actualOnTimeSD = MAX_PULSE_WIDTH;
@@ -2164,15 +2176,22 @@ void SDMode(){
 			else if(nextEvent.frequency <= 511) nextEvent.prescaler = 2 - 1;
 			else nextEvent.prescaler = 1 - 1;
 
+
 			nextEvent.autoReloadReg = CPU_CLK / ((nextEvent.prescaler+1) * nextEvent.frequency);
-			float usPerBit = (float)(nextEvent.prescaler+1) / 32.0; //will get optimized by compiler
-			nextEvent.bitsForPWM = (uint32_t)((float)actualOnTimeSD / usPerBit);
+			double usPerBit = (double)(nextEvent.prescaler+1) / 32.0; //will get optimized by compiler
+			nextEvent.bitsForPWM = (uint32_t)((double)actualOnTimeSD / usPerBit);
+			//uint32_t timeForCalc = HAL_GetTick() - tBeforeCalc;
+
+
+
 			sdModeState = SD_WAIT_NEXT;
 			break;
 
 		case SD_WAIT_NEXT:
-			if((time - timeStarted > nextEvent.timeOfEvent)){
+			if((HAL_GetTick() - timeStarted > nextEvent.timeOfEvent)){
+				//uint32_t tBeforeFinding = HAL_GetTick(), tAFter;
 				doThisCoil = findTimForThisCombo(nextEvent.track, nextEvent.frequency, nextEvent.velocity);
+				//tAFter = HAL_GetTick();
 				if(nextEvent.velocity > 0){
 					doThisCoil->Instance->CCR1 = 0;
 					doThisCoil->Instance->CCR2 = 0;
@@ -2192,7 +2211,9 @@ void SDMode(){
 			break;
 
 		case SD_READ_ERR:
+			while(1){
 
+			}
 			break;
 		}
 
