@@ -9,6 +9,23 @@
 #include "main.h"
 
 /**
+ * Same as setTimerFrequencyPulseWidth, but used specifically for notes. All data precalculated
+ *
+ *
+ *uint16_t noteFreq[60] = {
+		//c,      c#,     d,      d#,     e,      f,      f#,     G,      g#,     a,      a#,     b
+		33, 35, 37, 39, 41, 44, 46, 49, 52, 55, 58, 61, //1's
+		65, 69, 73, 78, 82, 87, 93, 98, 104, 110, 117, 123, //2's
+		131, 139, 147, 156, 165, 175, 185, 196, 208, 220, 233, 247, //3's
+		262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494, //4's
+		523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988 //5's
+};
+ */
+void setTimerFreqPulseFAST(TIM_HandleTypeDef* pTim, uint8_t note, uint8_t onTime){
+
+}
+
+/**
  * @brief 	sets a given timer to a frequency of freq (Hz) and pulseWidth (us). Set pulsewidth to 0 to turn off
  * @param	pTim pointer to the timer struct
  * @param	freq frequency in hertz

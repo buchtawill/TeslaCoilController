@@ -38,6 +38,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -62,43 +63,7 @@ TIM_HandleTypeDef htim9;
 TIM_HandleTypeDef htim10;
 TIM_HandleTypeDef htim11;
 
-/* State Definition ---------------------------------------------------------*/
-#define MODE_SELECT 0 //SD Card, Burst, or Fixed
-#define SD_MODE 1
-#define BURST_MODE 2
-#define FIXED_MODE 3
 
-#define MODE_NUM 3
-
-//State within Burst mode
-#define B_FREQUENCY 	0
-#define B_TON 			1
-#define B_TOFF 			2
-#define B_PLAY_PAUSE 	3
-#define B_BACK 			4
-#define BURST_STATE_NUM 4
-
-//State within Fixed mode
-#define F_FREQUENCY 	0
-#define F_PLAY_PAUSE 	1
-#define F_BACK 			2
-#define FIXED_STATE_NUM 2
-
-// Change configuration with number state
-#define HUNDRED_DIGIT 0
-#define TEN_DIGIT 1
-#define SINGLE_DIGIT 2
-
-
-/* Display constant Definition ------------------------------------------------------*/
-#define MAX_ROW 			4
-#define MAX_CHAR_ON_SCREEN 	19
-#define MAX_FILE_LENGTH 	20
-#define MAX_FILENAME_LENGTH 30
-
-#define FREQ_DISP_POS 	6
-#define T_ON_DISP_POS 	6
-#define T_OFF_DISP_POS 	7
 
 
 /* USER CODE BEGIN PV */
@@ -116,13 +81,13 @@ uint8_t dirPos = 0;
 boolean buttonPushed = false;
 
 uint16_t noteFreq[60] = {
-//c,      c#,     d,      d#,     e,      f,      f#,     G,      g#,     a,      a#,     b
-		33, 35, 37, 39, 41, 44, 46, 49, 52, 55, 58, 612, //1's
+		//c,      c#,     d,      d#,     e,      f,      f#,     G,      g#,     a,      a#,     b
+		33, 35, 37, 39, 41, 44, 46, 49, 52, 55, 58, 61, //1's
 		65, 69, 73, 78, 82, 87, 93, 98, 104, 110, 117, 123, //2's
 		131, 139, 147, 156, 165, 175, 185, 196, 208, 220, 233, 247, //3's
 		262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494, //4's
 		523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988 //5's
-		};
+};
 
 FATFS fs;
 FIL fil;
@@ -150,7 +115,9 @@ uint8_t digit = 0;
 uint8_t field_select = 0;
 uint8_t submode = -1;
 boolean inSubmode = false;
-
+boolean updateTimeScroll = true;
+uint32_t timeForScroll = 0;
+int fileCount = 0;
 char fileNames[MAX_FILE_LENGTH][MAX_FILENAME_LENGTH];
 char displayedText[MAX_CHAR_ON_SCREEN];
 
@@ -320,8 +287,7 @@ void turnOffAllCoils() {
  */
 int main(void) {
 	/* USER CODE BEGIN 1 */
-	boolean updateTimeScroll = true;
-	uint32_t timeForScroll = 0;
+
 	/* USER CODE END 1 */
 
 	/* MCU Configuration--------------------------------------------------------*/
@@ -357,52 +323,20 @@ int main(void) {
 
 
 	/* USER CODE BEGIN 2 */
-	HAL_TIM_Base_Start_IT(&htim6);	//microseconds counter
+	//HAL_TIM_Base_Start_IT(&htim6);	//microseconds counter
 	HAL_TIM_Base_Start_IT(&htim7);
-
-
-	/*
-	 * THINGS TO TEST WHEN BOARD IS ASSEMBLED:
-	 * 1. Read device and manufacturer ID from the flash by checking via debugger
-	 * 2. Read device and manufacturer ID and send over USB
-	 * 3. Check accuracy of micros by using gpio, or HAL_DELAY()
-	 * 3. Test LCD Library. "Hello World". Possibly read manufacturer ID and print to LCD
-	 * 4. Test the Rotary Encoder. Have the LCD display variables controlled by the knob and pushbutton
-	 * 5. Test the SD Card using a simple file
-	 * 6. Test PWM: Make a function to calculate the prescaler and auto reload for a certain frequency
-	 * 		Does changing values of htim2.Init.Prescaler = 70-1; and htim2.Init.Period = 65535; change anything?
-	 *		Can test on Heartbeat LED
-	 *
-	 * 7. Test output compare mode of timers (or even just using PeriodElapsedCallback and a delay function
-	 * 8. Make a function to control status LEDs
-	 */
-
 
 	initLCD(&lcd, &hi2c2, MAX_ROW, 20, 0x27);
 	setCursor(&lcd, 0, 0);
 
 	HAL_ADC_Start(&hadc);
 
-	//HAL_Delay();
-	//__HAL_TIM_GET_COUNTER(&htim16); //returns count
 
 	HAL_GPIO_WritePin(GPIOB, Flash__wp_Pin | Flash__Hold_Pin, GPIO_PIN_SET);//active low signals
-	flashInit(&flash, &hspi2, SPI2_SS_Pin, GPIOB);
 
-	//		 0xEF	   0x12
-	//uint8_t manu_id, dev_id;
-	//flashReadID(&flash, &manu_id, &dev_id);
-
-	//flashWriteEnable(&flash);
-	//uint8_t data [4] = {1, 244, 250, 69};
-	//flashPageProgram(&flash, 69, &data[0], 4);
-
-	//uint8_t data[4];
-	//flashReadData(&flash, 69, &data[0], 4);
 	writeStatusLED(0b11001100);
 
-	//HAL_ADC_Start_IT(&hadc);
-	//if(manu_id != 0x)
+	HAL_ADC_Start_IT(&hadc);
 
 	HAL_Delay(50);
 	fresult = f_mount(&fs, "", 1);
@@ -422,41 +356,37 @@ int main(void) {
 	htim3.Instance->CCR1 = 0;
 	htim4.Instance->CCR1 = 0;
 	htim10.Instance->CCR1 = 0;
-
+	/* USER CODE BEGIN 3 */
 
 	//Open SD card and store all file names in an array
 	fresult = f_opendir(&dir, "");
 
-	int fileCount = 0;
-    if (fresult == FR_OK) {
-        // Read the directory and store file names
-        for (;;) {
-        	fresult = f_readdir(&dir, &fno);
-            if (fresult != FR_OK || fno.fname[0] == 0) {
-                break; // No more files in the directory or an error occurred
-            }
-            if (fno.fattrib & AM_DIR) {
-                // Skip directories
-                continue;
-            }
 
-            // Copy the file name to the array
-            strncpy(fileNames[fileCount++], fno.fname, 30);
-        }
-        f_closedir(&dir);
-    }
+	if (fresult == FR_OK) {
+		// Read the directory and store file names
+		for (;;) {
+			fresult = f_readdir(&dir, &fno);
+			if (fresult != FR_OK || fno.fname[0] == 0) {
+				break; // No more files in the directory or an error occurred
+			}
+			if (fno.fattrib & AM_DIR) {
+				// Skip directories
+				continue;
+			}
 
-    //The last option is always "BACK" to mode selection
-    strncpy(fileNames[fileCount], "BACK", 30);
-    (void)LCDCursorOffBlinkOff(&lcd);
+			// Copy the file name to the array
+			strncpy(fileNames[fileCount++], fno.fname, 30);
+		}
+		f_closedir(&dir);
+	}
+
+	//The last option is always "BACK" to mode selection
+	strncpy(fileNames[fileCount], "BACK", 30);
+	(void)LCDCursorOffBlinkOff(&lcd);
 
 
 	while (1) {
 		time = HAL_GetTick();
-		if(time%500==0){
-			//writeStatusLED(time/1000);
-			//HAL_GPIO_TogglePin(LED_Heartbeat_GPIO_Port, LED_Heartbeat_Pin);
-		}
 
 		switch (state) {
 		case MODE_SELECT:
@@ -517,220 +447,7 @@ int main(void) {
 			break;
 
 		case SD_MODE:
-			if (!isDirOpen) {
-				fresult = f_opendir(&dir, "");
-				isDirOpen = true;
-			}
-			if (!isPlaying) {
-				// No need to print again if no need to refresh
-				// e.g. Going to a new page
-				if (!printed) {
-					clearDisplay(&lcd);
-					LCDPrintAtPos(&lcd, ">", 0, songNum % MAX_ROW );
-					for (int i = 0; i < MAX_ROW; i++) {
-						if (((int)(songNum / MAX_ROW) * MAX_ROW + i) == fileCount + 1) break;
-						strncpy(displayedText, &fileNames[(int)(songNum / MAX_ROW) * MAX_ROW + i][0], MAX_CHAR_ON_SCREEN);
-						displayedText[MAX_CHAR_ON_SCREEN] = '\0';
-						LCDPrintAtPos(&lcd, displayedText,1, i);
-					}
-					printed = true;
-					setCursor(&lcd, 0, songNum % MAX_ROW);
-				}
-
-				// If the current selected song is longer than what the screen can display,
-				// give it scroll effect
-
-				if (strlen(fileNames[songNum]) > MAX_CHAR_ON_SCREEN) {
-					//begin non blocking delay
-					if(updateTimeScroll == true){
-						updateTimeScroll = false;
-						timeForScroll = HAL_GetTick();
-						strncpy(displayedText, &fileNames[songNum][scrollPosition], MAX_CHAR_ON_SCREEN);
-						displayedText[MAX_CHAR_ON_SCREEN] = '\0';  // Null-terminate the string
-
-						// Display the portion on the LCD
-						LCDPrintAtPos(&lcd, displayedText, 1, songNum % MAX_ROW);
-
-						// Increment the scroll position and wrap around
-						scrollPosition++;
-						if (scrollPosition > strlen(fileNames[songNum]) - MAX_CHAR_ON_SCREEN)
-							scrollPosition = 0;
-					}
-					else{
-						if((HAL_GetTick() - timeForScroll) > 750){
-							updateTimeScroll = true;
-						}
-					}
-					//end nonblocking delay
-				}
-
-				// Scrolling up and down to choose the song
-				if(rotaryVal != prevRotaryVal)
-				{
-					LCDPrintAtPos(&lcd, " ", 0, songNum % MAX_ROW);
-
-					//Move down
-					if (rotaryVal > prevRotaryVal)
-					{
-						//We need to go to a new page, so display need to refresh
-						if (songNum % MAX_ROW == MAX_ROW-1) printed = false;
-
-						// If the previous song had the scroll effect, we make the screen
-						// display what it can
-						else {
-							if (strlen(fileNames[songNum]) > MAX_CHAR_ON_SCREEN) {
-								strncpy(displayedText, &fileNames[songNum][0], MAX_CHAR_ON_SCREEN);
-								displayedText[MAX_CHAR_ON_SCREEN] = '\0';
-								LCDPrintAtPos(&lcd, displayedText, 1, songNum % MAX_ROW);
-							}
-						}
-
-						if (songNum == fileCount) {
-							songNum = 0;
-							printed = false;
-						}
-						else {
-							songNum ++;
-						}
-					}
-
-					//Move up
-					else
-					{
-						//We need to go to a new page, so display need to refresh
-						if (songNum % MAX_ROW == 0) {
-							printed = false;
-						}
-
-						// If the previous song had the scroll effect, we make the screen
-						// display what it can
-						else {
-							if (strlen(fileNames[songNum]) > MAX_CHAR_ON_SCREEN) {
-								strncpy(displayedText, &fileNames[songNum][0], MAX_CHAR_ON_SCREEN);
-								displayedText[MAX_CHAR_ON_SCREEN] = '\0';
-								LCDPrintAtPos(&lcd, displayedText,1, songNum % MAX_ROW);
-							}
-						}
-
-						if (songNum == 0) {
-							songNum = (int)(fileCount / MAX_ROW) * MAX_ROW;
-						}
-						else if (songNum % MAX_ROW == 0) {
-							songNum -= MAX_ROW;
-						}
-						else {
-							songNum --;
-						}
-					}
-
-					LCDPrintAtPos(&lcd, ">", 0, songNum % MAX_ROW);
-					setCursor(&lcd, 0, songNum % MAX_ROW);
-					prevRotaryVal =  rotaryVal;
-				}
-
-				// Song selected, either a song or "BACK" button
-				if (buttonPushed) {
-					buttonPushed = false;
-					printed = false;
-					clearDisplay(&lcd);
-
-					if (songNum == fileCount) {
-						isDirOpen = false;
-						f_closedir(&dir);
-						state = MODE_SELECT;
-					}
-					else {
-						isPlaying = true;
-					}
-				}
-			}
-
-			// isPlaying = true
-			else {
-				//Print song information, instruction to return, and volume
-				if (!printed) {
-					LCDPrintAtPos(&lcd, "Playing...", 0, 0);
-					strncpy(displayedText, &fileNames[songNum][0], MAX_CHAR_ON_SCREEN);
-					displayedText[MAX_CHAR_ON_SCREEN] = '\0';
-					LCDPrintAtPos(&lcd, displayedText, 1, 1);
-					LCDPrintAtPos(&lcd, "Click to return", 0, 2);
-					LCDPrintAtPos(&lcd, "Ontime/Vol:", 0, 3);
-					LCDPrintAtPos(&lcd, "us", 14, 3);
-					LCDPrintNumber(&lcd, onTime, 11, 3, 3);
-					setCursor(&lcd, 16, 3);
-					printed = true;
-				}
-				if(onTime != prevOnTime){
-					prevOnTime = onTime;
-					LCDPrintNumber(&lcd, onTime, 11, 3, 3);
-					setCursor(&lcd, 16, 3);
-				}
-
-
-				//Playing the song
-				//set the time the song started, and get the first event
-				if(timeStarted==0){
-					f_open(&fil, fileNames[songNum], FA_READ);
-					fresult = f_read(&fil, &numEventsSplit[0], 2, &bytesRead);
-					fresult = f_read(&fil, &midiBuf[0], 6, &bytesRead);
-					numEvents = numEventsSplit[0] | (numEventsSplit[1] << 8);
-					eventCounter++;
-					HAL_Delay(100);
-					timeStarted = time;
-				}
-
-				uint32_t tNext = (midiBuf[1]) | (midiBuf[2]<<8) | (midiBuf[3]<<16);
-				if(tNext <= (time-timeStarted)){
-					//if an event happened, get the next event
-					uint8_t track = midiBuf[0];
-					uint16_t freq = noteFreq[midiBuf[4]];
-					uint8_t velocity = midiBuf[5];
-					//instead of velocity, (ontime / maxontime) * velocity
-
-					float velRatio = (float)velocity / 127.0;
-					uint8_t actualOnTime = velRatio * onTime;
-					setTimersAccordingly(track, freq, actualOnTime);
-//					setTimersAccordingly(track, freq, velocity);
-					if (eventCounter < numEvents){
-						fresult = f_read(&fil, &midiBuf[0], 6, &bytesRead);
-						eventCounter++;
-					}
-					else {
-						turnOffAllCoils();
-						eventCounter = 0;
-						timeStarted = 0;
-						fresult = f_close(&fil);
-
-						clearDisplay(&lcd);
-						printed = false;
-
-						isPlaying = false;
-					}
-					// Must wait so the code does not loop around before Hal_GetTick increases
-					HAL_Delay(1);
-				}
-
-
-
-				// Return to song select
-				if (buttonPushed) {
-					buttonPushed = false;
-
-					turnOffAllCoils();
-					eventCounter = 0;
-					timeStarted = 0;
-					fresult = f_close(&fil);
-
-					clearDisplay(&lcd);
-					printed = false;
-
-					isPlaying = false;
-
-				}
-
-			}
-
-
+			SDMode();
 			break;
 
 
@@ -801,31 +518,31 @@ int main(void) {
 
 			switch (submode) {
 
-			case B_FREQUENCY:
-				inSubmode = true;
-				changeNumber(&frequency, MAX_FREQUENCY, FREQ_DISP_POS);
+				case B_FREQUENCY:
+					inSubmode = true;
+					changeNumber(&frequency, MAX_FREQUENCY, FREQ_DISP_POS);
 
-				break;
+					break;
 
-			case B_TON:
-				inSubmode = true;
-				changeNumber(&t_on, MAX_TIME_ON, T_ON_DISP_POS);
+				case B_TON:
+					inSubmode = true;
+					changeNumber(&t_on, MAX_TIME_ON, T_ON_DISP_POS);
 
 
-				break;
+					break;
 
-			case B_TOFF:
-				inSubmode = true;
-				changeNumber(&t_off, MAX_TIME_OFF, T_OFF_DISP_POS);
+				case B_TOFF:
+					inSubmode = true;
+					changeNumber(&t_off, MAX_TIME_OFF, T_OFF_DISP_POS);
 
-				break;
+					break;
 
-			default:
-				break;
+				default:
+					break;
 			}
 
 			if (!inSubmode) {
-			// Choosing the field to config
+				// Choosing the field to config
 				if(rotaryVal != prevRotaryVal)
 				{
 					//BACK is displayed at the bottom right
@@ -901,62 +618,62 @@ int main(void) {
 
 			break;
 
-		case FIXED_MODE:
-			if (!printed) {
-				LCDPrintAtPos(&lcd, ">", 0, field_select);
-				LCDPrintAtPos(&lcd, "Freq:", 1, 0);
-				LCDPrintNumber(&lcd, frequency, FREQ_DISP_POS, 0, 3);
-
-				LCDPrintAtPos(&lcd, "FIXED", 15, 0);
-				LCDPrintAtPos(&lcd, "BACK", 1, 2);
-
-				LCDPrintAtPos(&lcd, "Ontime:", 1, 3);
-				LCDPrintNumber(&lcd, onTime, 8, 3, 3);
-				LCDPrintAtPos(&lcd, "us", 11, 3);
-				setCursor(&lcd, 0, field_select);
-			}
-
-
-			if (!isPlaying) {
+			case FIXED_MODE:
 				if (!printed) {
-					LCDPrintAtPos(&lcd, "Play", 1, 1);
-					printed = true;
-					setCursor(&lcd, 0, field_select);
-				}
-				if (onTime != prevOnTime) {
-					prevOnTime = onTime;
+					LCDPrintAtPos(&lcd, ">", 0, field_select);
+					LCDPrintAtPos(&lcd, "Freq:", 1, 0);
+					LCDPrintNumber(&lcd, frequency, FREQ_DISP_POS, 0, 3);
+
+					LCDPrintAtPos(&lcd, "FIXED", 15, 0);
+					LCDPrintAtPos(&lcd, "BACK", 1, 2);
+
+					LCDPrintAtPos(&lcd, "Ontime:", 1, 3);
 					LCDPrintNumber(&lcd, onTime, 8, 3, 3);
-					setCursor(&lcd, 0, field_select);
-				}
-			}
-
-			//isPlaying = true
-			else {
-				if (!printed) {
-					LCDPrintAtPos(&lcd, "Pause", 1, 1);
-					printed = true;
+					LCDPrintAtPos(&lcd, "us", 11, 3);
 					setCursor(&lcd, 0, field_select);
 				}
 
-				if (!coil1On) {
-					setTimerFrequencyPulseWidth(&COIL1, frequency, onTime, COIL1_CH);
-					coil1On = true;
+
+				if (!isPlaying) {
+					if (!printed) {
+						LCDPrintAtPos(&lcd, "Play", 1, 1);
+						printed = true;
+						setCursor(&lcd, 0, field_select);
+					}
+					if (onTime != prevOnTime) {
+						prevOnTime = onTime;
+						LCDPrintNumber(&lcd, onTime, 8, 3, 3);
+						setCursor(&lcd, 0, field_select);
+					}
 				}
 
-				if (prevFrequency != frequency || onTime != prevOnTime) {
-					turnOffAllCoils();
-					setTimerFrequencyPulseWidth(&COIL1, frequency, onTime, COIL1_CH);
-					prevFrequency = frequency;
-					prevOnTime = onTime;
-					LCDPrintNumber(&lcd, onTime, 8, 3, 3);
-					coil1On = true;
-					setCursor(&lcd, 0, field_select);
+				//isPlaying = true
+				else {
+					if (!printed) {
+						LCDPrintAtPos(&lcd, "Pause", 1, 1);
+						printed = true;
+						setCursor(&lcd, 0, field_select);
+					}
+
+					if (!coil1On) {
+						setTimerFrequencyPulseWidth(&COIL1, frequency, onTime, COIL1_CH);
+						coil1On = true;
+					}
+
+					if (prevFrequency != frequency || onTime != prevOnTime) {
+						turnOffAllCoils();
+						setTimerFrequencyPulseWidth(&COIL1, frequency, onTime, COIL1_CH);
+						prevFrequency = frequency;
+						prevOnTime = onTime;
+						LCDPrintNumber(&lcd, onTime, 8, 3, 3);
+						coil1On = true;
+						setCursor(&lcd, 0, field_select);
+					}
 				}
-			}
 
 
 
-			switch (submode) {
+				switch (submode) {
 				case F_FREQUENCY:
 					inSubmode = true;
 					changeNumber(&frequency, MAX_FREQUENCY, FREQ_DISP_POS);
@@ -968,79 +685,81 @@ int main(void) {
 
 
 
-			if (!inSubmode) {
-			// Choosing the field to config
-				if(rotaryVal != prevRotaryVal)
-				{
-					//BACK is displayed at the bottom right
-					if (field_select == B_BACK) {
-						LCDPrintAtPos(&lcd, " ", 0, 2);
-					}
-					else LCDPrintAtPos(&lcd, " ", 0, field_select);
+				if (!inSubmode) {
+					// Choosing the field to config
+					if(rotaryVal != prevRotaryVal)
+					{
+						//BACK is displayed at the bottom right
+						if (field_select == B_BACK) {
+							LCDPrintAtPos(&lcd, " ", 0, 2);
+						}
+						else LCDPrintAtPos(&lcd, " ", 0, field_select);
 
-					//Move down
-					if (rotaryVal > prevRotaryVal){
-						field_select == FIXED_STATE_NUM ? field_select = 0 : field_select ++;
-					}
-					//Move up
-					else {
-						(field_select == 0)? field_select = FIXED_STATE_NUM : field_select --;
+						//Move down
+						if (rotaryVal > prevRotaryVal){
+							field_select == FIXED_STATE_NUM ? field_select = 0 : field_select ++;
+						}
+						//Move up
+						else {
+							(field_select == 0)? field_select = FIXED_STATE_NUM : field_select --;
+						}
+
+						LCDPrintAtPos(&lcd, ">", 0, field_select);
+						setCursor(&lcd, 0, field_select);
+
+						prevRotaryVal =  rotaryVal;
 					}
 
-					LCDPrintAtPos(&lcd, ">", 0, field_select);
-					setCursor(&lcd, 0, field_select);
 
-					prevRotaryVal =  rotaryVal;
+					if (buttonPushed) {
+						buttonPushed = false;
+
+						switch (field_select) {
+						case F_FREQUENCY:
+							submode = F_FREQUENCY;
+							break;
+
+						case F_PLAY_PAUSE:
+							printed = false;
+							clearDisplay(&lcd);
+							if (isPlaying) {
+								turnOffAllCoils();
+							}
+							isPlaying = !isPlaying;
+
+							break;
+
+						case F_BACK:
+							submode = -1;
+							printed = false;
+							clearDisplay(&lcd);
+							field_select = 0;
+							if (isPlaying) {
+								turnOffAllCoils();
+								isPlaying = false;
+							}
+							state = MODE_SELECT;
+							break;
+
+						default:
+							break;
+
+						}
+					}
 				}
 
+				break;
 
-				if (buttonPushed) {
-					buttonPushed = false;
-
-					switch (field_select) {
-					case F_FREQUENCY:
-						submode = F_FREQUENCY;
-						break;
-
-					case F_PLAY_PAUSE:
-						printed = false;
-						clearDisplay(&lcd);
-						if (isPlaying) {
-							turnOffAllCoils();
-						}
-						isPlaying = !isPlaying;
-
-						break;
-
-					case F_BACK:
-						submode = -1;
-						printed = false;
-						clearDisplay(&lcd);
-						field_select = 0;
-						if (isPlaying) {
-							turnOffAllCoils();
-							isPlaying = false;
-						}
-						state = MODE_SELECT;
-						break;
-
-					default:
-						break;
-
-					}
-				}
-			}
-
-			break;
-
-		default:
-			break;
+				default:
+					break;
 		}
 
 		if((time - adcTime) > 50){
 			HAL_ADC_Start_IT(&hadc);
 			adcVal = HAL_ADC_GetValue(&hadc);
-			onTime = (uint8_t)((((float)adcVal) / 255)*MAX_PULSE_WIDTH);
+
+			//onTime = (uint8_t)((((float)adcVal) / 255)*MAX_PULSE_WIDTH);
+			onTime = (adcVal * MAX_PULSE_WIDTH) >> 8;
 			adcTime = time;
 			writeStatusLED(adcVal);
 		}
@@ -1052,7 +771,7 @@ int main(void) {
 
 
 
-/* USER CODE BEGIN 3 */
+
 
 /**
  * Allows the user to change number (3 digits) by scrolling
@@ -1979,6 +1698,9 @@ void USBDataReceived_IT(uint8_t *Buf, uint32_t *len) {
 
 }
 
+/**
+ * 2 main timers: one for micros, one for heartbeat LED
+ */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 
 	if (htim == &htim6) {
@@ -1996,6 +1718,226 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	adcVal = HAL_ADC_GetValue(hadc);
 }
+
+void SDModeChooseSong(){
+	// No need to print again if no need to refresh
+	// e.g. Going to a new page
+	if (!printed) {
+		clearDisplay(&lcd);
+		LCDPrintAtPos(&lcd, ">", 0, songNum % MAX_ROW );
+		for (int i = 0; i < MAX_ROW; i++) {
+			if (((int)(songNum / MAX_ROW) * MAX_ROW + i) == fileCount + 1) break;
+			strncpy(displayedText, &fileNames[(int)(songNum / MAX_ROW) * MAX_ROW + i][0], MAX_CHAR_ON_SCREEN);
+			displayedText[MAX_CHAR_ON_SCREEN] = '\0';
+			LCDPrintAtPos(&lcd, displayedText,1, i);
+		}
+		printed = true;
+		setCursor(&lcd, 0, songNum % MAX_ROW);
+	}
+
+	// If the current selected song is longer than what the screen can display,
+	// give it scroll effect
+
+	if (strlen(fileNames[songNum]) > MAX_CHAR_ON_SCREEN) {
+		//begin non blocking delay
+		if(updateTimeScroll == true){
+			updateTimeScroll = false;
+			timeForScroll = HAL_GetTick();
+			strncpy(displayedText, &fileNames[songNum][scrollPosition], MAX_CHAR_ON_SCREEN);
+			displayedText[MAX_CHAR_ON_SCREEN] = '\0';  // Null-terminate the string
+
+			// Display the portion on the LCD
+			LCDPrintAtPos(&lcd, displayedText, 1, songNum % MAX_ROW);
+
+			// Increment the scroll position and wrap around
+			scrollPosition++;
+			if (scrollPosition > strlen(fileNames[songNum]) - MAX_CHAR_ON_SCREEN)
+				scrollPosition = 0;
+		}
+		else{
+			if((HAL_GetTick() - timeForScroll) > 750){
+				updateTimeScroll = true;
+			}
+		}
+		//end nonblocking delay
+	}
+
+	// Scrolling up and down to choose the song
+	if(rotaryVal != prevRotaryVal){
+		LCDPrintAtPos(&lcd, " ", 0, songNum % MAX_ROW);
+
+		//Move down
+		if (rotaryVal > prevRotaryVal)
+		{
+			//We need to go to a new page, so display need to refresh
+			if (songNum % MAX_ROW == MAX_ROW-1) printed = false;
+
+			// If the previous song had the scroll effect, we make the screen
+			// display what it can
+			else {
+				if (strlen(fileNames[songNum]) > MAX_CHAR_ON_SCREEN) {
+					strncpy(displayedText, &fileNames[songNum][0], MAX_CHAR_ON_SCREEN);
+					displayedText[MAX_CHAR_ON_SCREEN] = '\0';
+					LCDPrintAtPos(&lcd, displayedText, 1, songNum % MAX_ROW);
+				}
+			}
+
+			if (songNum == fileCount) {
+				songNum = 0;
+				printed = false;
+			}
+			else {
+				songNum ++;
+			}
+		}
+
+		//Move up
+		else{
+			//We need to go to a new page, so display need to refresh
+			if (songNum % MAX_ROW == 0) {
+				printed = false;
+			}
+
+			// If the previous song had the scroll effect, we make the screen
+			// display what it can
+			else {
+				if (strlen(fileNames[songNum]) > MAX_CHAR_ON_SCREEN) {
+					strncpy(displayedText, &fileNames[songNum][0], MAX_CHAR_ON_SCREEN);
+					displayedText[MAX_CHAR_ON_SCREEN] = '\0';
+					LCDPrintAtPos(&lcd, displayedText,1, songNum % MAX_ROW);
+				}
+			}
+
+			if (songNum == 0) {
+				songNum = (int)(fileCount / MAX_ROW) * MAX_ROW;
+			}
+			else if (songNum % MAX_ROW == 0) {
+				songNum -= MAX_ROW;
+			}
+			else {
+				songNum --;
+			}
+		}
+
+		LCDPrintAtPos(&lcd, ">", 0, songNum % MAX_ROW);
+		setCursor(&lcd, 0, songNum % MAX_ROW);
+		prevRotaryVal =  rotaryVal;
+	}
+
+	// Song selected, either a song or "BACK" button
+	if (buttonPushed) {
+		buttonPushed = false;
+		printed = false;
+		clearDisplay(&lcd);
+
+		if (songNum == fileCount) {
+			isDirOpen = false;
+			f_closedir(&dir);
+			state = MODE_SELECT;
+		}
+		else {
+			isPlaying = true;
+		}
+	}
+}
+
+void SDMode(){
+	if (!isDirOpen) {
+		fresult = f_opendir(&dir, "");
+		isDirOpen = true;
+	}
+	if (!isPlaying) {
+		SDModeChooseSong();
+
+	}
+
+	// isPlaying = true
+	else {
+		//Print song information, instruction to return, and volume
+		if (!printed) {
+			LCDPrintAtPos(&lcd, "Playing...", 0, 0);
+			strncpy(displayedText, &fileNames[songNum][0], MAX_CHAR_ON_SCREEN);
+			displayedText[MAX_CHAR_ON_SCREEN] = '\0';
+			LCDPrintAtPos(&lcd, displayedText, 1, 1);
+			LCDPrintAtPos(&lcd, "Click to return", 0, 2);
+			LCDPrintAtPos(&lcd, "Ontime/Vol:", 0, 3);
+			LCDPrintAtPos(&lcd, "us", 14, 3);
+			LCDPrintNumber(&lcd, onTime, 11, 3, 3);
+			setCursor(&lcd, 16, 3);
+			printed = true;
+		}
+		if(onTime != prevOnTime){
+			prevOnTime = onTime;
+			LCDPrintNumber(&lcd, onTime, 11, 3, 3);
+			setCursor(&lcd, 16, 3);
+		}
+
+
+		//Playing the song
+		//set the time the song started, and get the first event
+		if(timeStarted==0){
+			f_open(&fil, fileNames[songNum], FA_READ);
+			fresult = f_read(&fil, &numEventsSplit[0], 2, &bytesRead);
+			fresult = f_read(&fil, &midiBuf[0], 6, &bytesRead);
+			numEvents = numEventsSplit[0] | (numEventsSplit[1] << 8);
+			eventCounter++;
+			HAL_Delay(1000);
+			timeStarted = time;
+		}
+
+		uint32_t tNext = (midiBuf[1]) | (midiBuf[2]<<8) | (midiBuf[3]<<16);
+		if(tNext <= (time-timeStarted)){
+			//if an event happened, get the next event
+			uint8_t track = midiBuf[0];
+			uint16_t freq = noteFreq[midiBuf[4]];
+			uint8_t velocity = midiBuf[5];
+
+			float velRatio = (float)velocity / 127.0;
+			uint8_t actualOnTime = velRatio * onTime;
+			setTimersAccordingly(track, freq, actualOnTime);
+			//					setTimersAccordingly(track, freq, velocity);
+			if (eventCounter < numEvents){
+				fresult = f_read(&fil, &midiBuf[0], 6, &bytesRead);
+				eventCounter++;
+			}
+			else {
+				turnOffAllCoils();
+				eventCounter = 0;
+				timeStarted = 0;
+				fresult = f_close(&fil);
+
+				clearDisplay(&lcd);
+				printed = false;
+
+				isPlaying = false;
+			}
+			// Must wait so the code does not loop around before Hal_GetTick increases
+			HAL_Delay(1);
+		}
+
+
+
+		// Return to song select
+		if (buttonPushed) {
+			buttonPushed = false;
+
+			turnOffAllCoils();
+			eventCounter = 0;
+			timeStarted = 0;
+			fresult = f_close(&fil);
+
+			clearDisplay(&lcd);
+			printed = false;
+
+			isPlaying = false;
+
+		}
+
+	}
+
+
+}
+
 /* USER CODE END 4 */
 
 /**

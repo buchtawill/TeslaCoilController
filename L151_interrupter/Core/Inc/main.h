@@ -56,6 +56,7 @@ void Error_Handler(void);
 /* USER CODE BEGIN EFP */
 void changeNumber(uint16_t* number, uint16_t max, uint8_t printPosition);
 void delayMicroseconds(uint64_t delay);
+void SDMode();
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
 void delayMicroseconds(uint64_t delay);
 void writeStatusLED(uint8_t status);
@@ -112,6 +113,44 @@ void printToUSB(char* s);
 #define SD_SPI_HANDLE 	hspi1
 //#define SD_CS_GPIO_Port	SPI1_SS_GPIO_Port
 //#define SD_CS_Pin		SPI1_SS_Pin
+
+/* State Definition ---------------------------------------------------------*/
+#define MODE_SELECT 0 //SD Card, Burst, or Fixed
+#define SD_MODE 1
+#define BURST_MODE 2
+#define FIXED_MODE 3
+
+#define MODE_NUM 3
+
+//State within Burst mode
+#define B_FREQUENCY 	0
+#define B_TON 			1
+#define B_TOFF 			2
+#define B_PLAY_PAUSE 	3
+#define B_BACK 			4
+#define BURST_STATE_NUM 4
+
+//State within Fixed mode
+#define F_FREQUENCY 	0
+#define F_PLAY_PAUSE 	1
+#define F_BACK 			2
+#define FIXED_STATE_NUM 2
+
+// Change configuration with number state
+#define HUNDRED_DIGIT 0
+#define TEN_DIGIT 1
+#define SINGLE_DIGIT 2
+
+
+/* Display constant Definition ------------------------------------------------------*/
+#define MAX_ROW 			4
+#define MAX_CHAR_ON_SCREEN 	19
+#define MAX_FILE_LENGTH 	20
+#define MAX_FILENAME_LENGTH 32
+
+#define FREQ_DISP_POS 	6
+#define T_ON_DISP_POS 	6
+#define T_OFF_DISP_POS 	7
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
