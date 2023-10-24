@@ -2017,6 +2017,7 @@ void SDModeChooseSong(){
 
 			if (songNum == 0) {
 				//songNum = (int)(fileCount / MAX_ROW) * MAX_ROW;
+//				songNum = fileCount;
 				songNum = fileCount;
 			}
 //			else if (songNum % MAX_ROW == 0) {
