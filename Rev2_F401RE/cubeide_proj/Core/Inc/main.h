@@ -59,8 +59,30 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define ROT_CLK_Pin GPIO_PIN_13
+#define ROT_CLK_GPIO_Port GPIOC
+#define ROT_DAT_Pin GPIO_PIN_14
+#define ROT_DAT_GPIO_Port GPIOC
+#define ROT_SW_Pin GPIO_PIN_15
+#define ROT_SW_GPIO_Port GPIOC
+#define OH_SHIT_BTN_Pin GPIO_PIN_0
+#define OH_SHIT_BTN_GPIO_Port GPIOC
+#define OLED_CS_Pin GPIO_PIN_4
+#define OLED_CS_GPIO_Port GPIOA
+#define OLED_RST_Pin GPIO_PIN_4
+#define OLED_RST_GPIO_Port GPIOC
+#define OLED_DC_Pin GPIO_PIN_5
+#define OLED_DC_GPIO_Port GPIOC
+#define SPKR_EN_BTN_Pin GPIO_PIN_1
+#define SPKR_EN_BTN_GPIO_Port GPIOB
+#define SPEAKER_EN_Pin GPIO_PIN_12
+#define SPEAKER_EN_GPIO_Port GPIOB
+#define LED_HEARTBEAT_Pin GPIO_PIN_13
+#define LED_HEARTBEAT_GPIO_Port GPIOB
 #define SDIO_DETECT_Pin GPIO_PIN_14
 #define SDIO_DETECT_GPIO_Port GPIOB
+#define V_SRC_Pin GPIO_PIN_15
+#define V_SRC_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
