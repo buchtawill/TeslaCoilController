@@ -81,8 +81,6 @@ void Error_Handler(void);
 #define LED_HEARTBEAT_GPIO_Port GPIOB
 #define SDIO_DETECT_Pin GPIO_PIN_14
 #define SDIO_DETECT_GPIO_Port GPIOB
-#define V_SRC_Pin GPIO_PIN_15
-#define V_SRC_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
