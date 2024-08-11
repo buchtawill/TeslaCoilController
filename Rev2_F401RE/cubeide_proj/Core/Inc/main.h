@@ -61,12 +61,15 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define ROT_CLK_Pin GPIO_PIN_13
 #define ROT_CLK_GPIO_Port GPIOC
+#define ROT_CLK_EXTI_IRQn EXTI15_10_IRQn
 #define ROT_DAT_Pin GPIO_PIN_14
 #define ROT_DAT_GPIO_Port GPIOC
 #define ROT_SW_Pin GPIO_PIN_15
 #define ROT_SW_GPIO_Port GPIOC
+#define ROT_SW_EXTI_IRQn EXTI15_10_IRQn
 #define OH_SHIT_BTN_Pin GPIO_PIN_0
 #define OH_SHIT_BTN_GPIO_Port GPIOC
+#define OH_SHIT_BTN_EXTI_IRQn EXTI0_IRQn
 #define OLED_CS_Pin GPIO_PIN_4
 #define OLED_CS_GPIO_Port GPIOA
 #define OLED_RST_Pin GPIO_PIN_4
@@ -75,6 +78,7 @@ void Error_Handler(void);
 #define OLED_DC_GPIO_Port GPIOC
 #define SPKR_EN_BTN_Pin GPIO_PIN_1
 #define SPKR_EN_BTN_GPIO_Port GPIOB
+#define SPKR_EN_BTN_EXTI_IRQn EXTI1_IRQn
 #define SPEAKER_EN_Pin GPIO_PIN_12
 #define SPEAKER_EN_GPIO_Port GPIOB
 #define LED_HEARTBEAT_Pin GPIO_PIN_13
