@@ -88,6 +88,32 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN Private defines */
 
+//State definitions
+#define INTERRUPTER_MODE_CHOOSE   0 //Choose the interrupter mode
+#define INTERRUPTER_MODE_SD       1 //SD mode
+#define INTERRUPTER_MODE_LIVE     2 //Live mode
+#define INTERRUPTER_MODE_BURST    3 //Burst mode
+#define INTERRUPTER_MODE_FIXED    4 //Fixed mode
+#define INTERRUPTER_NUM_MODES     5
+
+//Burst mode sub-state
+#define BURST_CHANGE_FREQ         0
+#define BURST_CHANGE_TON          1
+#define BURST_CHANGE_TOFF         2
+#define BURST_PLAY_PAUSE          3
+#define BURST_GO_BACK             4
+#define BURST_NUM_STATES          5
+
+//Fixed mode sub-state
+#define FIXED_CHANGE_FREQ         0
+#define FIXED_PLAY_PAUSE          1
+#define FIXED_GO_BACK             2
+#define FIXED_NUM_STATES          3
+
+#define HUNDRED_DIGIT             0
+#define TEN_DIGIT                 1
+#define ONES_DIGIT                2
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

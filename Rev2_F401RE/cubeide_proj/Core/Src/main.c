@@ -175,6 +175,14 @@ int main(void)
      * 3. External Int:
      *    ROT_CLK, ROT_SW, OH_SHIT_BTN, SPKR_EN_BTN
      */
+
+    //Initialize everything:
+    // Start the timers
+    // Initialize the LCD
+    // Start the ADC (DMA too?)
+    // Read the contents of the SD card and store in an array
+
+
     while (1){
     /* USER CODE END WHILE */
 
