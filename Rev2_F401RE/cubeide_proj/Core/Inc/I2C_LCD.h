@@ -15,8 +15,6 @@
 #include "main.h"
 #include "stm32f4xx_hal.h"
 #include "string.h"
-#include <stdio.h>
-
 
 /*
  * Send high bits then low bits
