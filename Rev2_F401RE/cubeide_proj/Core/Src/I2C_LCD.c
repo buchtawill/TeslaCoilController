@@ -102,8 +102,6 @@ HAL_StatusTypeDef LCDPrintNumber(LCD *dev, uint16_t num, uint8_t col, uint8_t ro
 
 	stat |= LCDPrintAtPos(dev, numberString, col, row);
 
-
-
 	return stat;
 }
 
@@ -152,30 +150,35 @@ HAL_StatusTypeDef LCDCursorOnBlinkOff(LCD *dev){
 	HAL_Delay(1);
 	return bruh;
 }
+
 HAL_StatusTypeDef LCDCursorOnBlinkOn(LCD *dev){
 	uint8_t dataByte = 0b00001111;
 	HAL_StatusTypeDef bruh = writeToRegister(dev, dataByte, 0);
 	HAL_Delay(1);
 	return bruh;
 }
+
 HAL_StatusTypeDef LCDCursorOffBlinkOn(LCD *dev){
 	uint8_t dataByte = 0b00001101;
 	HAL_StatusTypeDef bruh = writeToRegister(dev, dataByte, 0);
 	HAL_Delay(1);
 	return bruh;
 }
+
 HAL_StatusTypeDef LCDCursorOffBlinkOff(LCD *dev){
 	uint8_t dataByte = 0b00001100;
 	HAL_StatusTypeDef bruh = writeToRegister(dev, dataByte, 0);
 	HAL_Delay(1);
 	return bruh;
 }
+
 HAL_StatusTypeDef LCDDisplayOn(LCD *dev){
 	uint8_t dataByte = 0b00001100;
 	HAL_StatusTypeDef bruh = writeToRegister(dev, dataByte, 0);
 	HAL_Delay(1);
 	return bruh;
 }
+
 HAL_StatusTypeDef LCDDisplayOff(LCD *dev){
 	uint8_t dataByte = 0b00001000;
 	HAL_StatusTypeDef bruh = writeToRegister(dev, dataByte, 0);
@@ -241,10 +244,10 @@ HAL_StatusTypeDef writeAByte(LCD *dev, uint8_t byte){
 	//byte |= 1 << BT;
 	stat = HAL_I2C_Master_Transmit(&(dev->handle), dev->addr, &byte, 1, 1000);
 	byte |= 1<<EN;
-	delayMicroseconds(10);
+	HAL_Delay(1);
 	stat |= HAL_I2C_Master_Transmit(&(dev->handle), dev->addr, &byte, 1, 1000);
 	byte &= ~(1<<EN);
-	delayMicroseconds(10);
+	HAL_Delay(1);
 	return stat | HAL_I2C_Master_Transmit(&(dev->handle), dev->addr, &byte, 1, 1000);
 }
 
