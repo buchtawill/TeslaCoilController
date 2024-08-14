@@ -1,6 +1,8 @@
 #ifndef __TIMERS_H__
 #define __TIMERS_H__
 
+#include "stm32f4xx_hal.h"
+
 #define CPU_CLK_HZ          84000000
 #define MAX_PULSE_WIDTH     150 //microseconds
 #define MIN_PULSE_WIDTH     10  //microseconds

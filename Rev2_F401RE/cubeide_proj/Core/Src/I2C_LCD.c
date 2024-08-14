@@ -10,7 +10,8 @@
  */
 
 #include "I2C_LCD.h"
-
+#include <stdio.h> 	//for sprintf
+#include <string.h> //for strlen
 
 
 //HAL_I2C_Master_Transmit(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint8_t *pData, uint16_t Size, uint32_t Timeout)
@@ -35,13 +36,13 @@ HAL_StatusTypeDef initLCD(LCD *dev, I2C_HandleTypeDef *handle, uint8_t nRows, ui
 	//	HAL_Delay(50);
 
 	//clear display
-	stat |= writeToRegister(dev, 0b00000001, INSTRUCTION);
+	stat |= writeToRegister(dev, 0b00000001, LCD_INSTR_REG);
 	HAL_Delay(50);
 
-	stat |= writeToRegister(dev, 0b00000010, INSTRUCTION);
+	stat |= writeToRegister(dev, 0b00000010, LCD_INSTR_REG);
 	HAL_Delay(50);
 
-	stat |= writeToRegister(dev, 0b00001101, INSTRUCTION);
+	stat |= writeToRegister(dev, 0b00001101, LCD_INSTR_REG);
 	HAL_Delay(50);
 
 	return stat;
@@ -73,7 +74,7 @@ HAL_StatusTypeDef LCDPrint(LCD *dev, char *pString){
 	uint8_t len = strlen(pString);
 	HAL_StatusTypeDef stat = HAL_OK;
 	for(int i = 0; i<len; i++){
-		stat |= writeToRegister(dev, *pString, DATA);
+		stat |= writeToRegister(dev, *pString, LCD_DATA_REG);
 		pString++;
 		HAL_Delay(1);
 		//		delayMicroseconds(50); //takes 37 microseconds
@@ -117,7 +118,7 @@ HAL_StatusTypeDef LCDPrintAtPos(LCD *dev, char *pString, uint8_t col, uint8_t ro
  */
 HAL_StatusTypeDef writeToDDRAMAddress(LCD *dev, uint8_t addr, uint8_t byte){
 	HAL_StatusTypeDef stat = setDDRAMAddress(dev, addr);
-	return stat | writeToRegister(dev, byte, DATA);
+	return stat | writeToRegister(dev, byte, LCD_DATA_REG);
 }
 
 /**
@@ -126,7 +127,7 @@ HAL_StatusTypeDef writeToDDRAMAddress(LCD *dev, uint8_t addr, uint8_t byte){
 HAL_StatusTypeDef setDDRAMAddress(LCD *dev, uint8_t addr){
 	//				  			command    7 bits of address
 	uint8_t dataByte = SET_DDRAM_ADDR_BIT | (addr & 0b01111111);
-	HAL_StatusTypeDef bruh = writeToRegister(dev, dataByte, INSTRUCTION);
+	HAL_StatusTypeDef bruh = writeToRegister(dev, dataByte, LCD_INSTR_REG);
 	return bruh;
 }
 
@@ -200,11 +201,11 @@ HAL_StatusTypeDef writeToRegister(LCD *dev, uint8_t byte, uint8_t rs){
 	//	HAL_StatusTypeDef bruh = writeAByte(dev, first);
 	//	bruh |= writeAByte(dev, second);
 	HAL_StatusTypeDef bruh = HAL_OK;
-	if(rs == INSTRUCTION){
+	if(rs == LCD_INSTR_REG){
 		bruh = write4BitsToInstructionReg(dev, (byte & 0xF0) >> 4);
 		bruh |= write4BitsToInstructionReg(dev, byte & 0x0F);
 	}
-	else if(rs == DATA){
+	else if(rs == LCD_DATA_REG){
 		bruh = write4BitsToDataReg(dev, (byte & 0xF0) >> 4);
 		bruh |= write4BitsToDataReg(dev, byte & 0x0F);
 	}
