@@ -2056,17 +2056,20 @@ void SDDealWithScreen(){
 		LCDPrintAtPos(&lcd, "Playing...", 0, 0);
 		strncpy(displayedText, &fileNames[songNum][0], MAX_CHAR_ON_SCREEN);
 		displayedText[MAX_CHAR_ON_SCREEN] = '\0';
-		LCDPrintAtPos(&lcd, displayedText, 1, 1);
 		LCDPrintAtPos(&lcd, "Click to return", 0, 2);
-		LCDPrintAtPos(&lcd, "Ontime/Vol:", 0, 3);
-		LCDPrintAtPos(&lcd, "us", 14, 3);
-		LCDPrintNumber(&lcd, onTime, 11, 3, 3);
+		LCDPrintAtPos(&lcd, displayedText, 1, 1);
+
+		LCDPrintAtPos(&lcd, "Ton A:   us B:   us", 0, 3);
+		LCDPrintNumber(&lcd, onTime, 6, 3, 3);
+		LCDPrintNumber(&lcd, onTime, 14, 3, 3);
+
 		setCursor(&lcd, 16, 3);
 		printed = true;
 	}
 	if(onTime != prevOnTime){
 		prevOnTime = onTime;
-		LCDPrintNumber(&lcd, onTime, 11, 3, 3);
+		LCDPrintNumber(&lcd, onTime, 6, 3, 3);
+		LCDPrintNumber(&lcd, onTime, 14, 3, 3);
 		setCursor(&lcd, 16, 3);
 	}
 }

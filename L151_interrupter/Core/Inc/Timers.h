@@ -11,7 +11,7 @@
 #include "main.h"
 
 #define CPU_CLK 32000000
-#define MAX_PULSE_WIDTH 125 //us
+#define MAX_PULSE_WIDTH 150 //us
 #define MIN_PULSE_WIDTH 5
 
 #define MAX_FREQUENCY 950 //Hz
