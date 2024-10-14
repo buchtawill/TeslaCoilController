@@ -48,6 +48,7 @@
 
 /* Private variables ---------------------------------------------------------*/
  ADC_HandleTypeDef hadc;
+DMA_HandleTypeDef hdma_adc;
 
 I2C_HandleTypeDef hi2c2;
 
@@ -70,10 +71,17 @@ uint64_t micros = 0;
 int16_t rotaryVal = 0, prevRotaryVal = 0;
 //char  USB_Rx_Buf[256], USB_Tx_Buf[256];
 uint16_t adcVal;
-uint8_t onTime, prevOnTime = 0;
+
+// onTime[0] is for the left fiber optic, onTime[1] is for the right fiber optic
+uint8_t onTime[2] = {0, 0};
+uint8_t prevOnTime[2] = {0, 0};
 uint32_t time1 = 0, time2 = 0;
 uint32_t diff = 0;
 uint8_t dirPos = 0;
+
+volatile uint16_t adc_dma_results[2];
+const int         adcChannelCount = sizeof(adc_dma_results) / sizeof(adc_dma_results[0]);
+volatile boolean  adc_conv_complete = false; //set by callback
 
 boolean buttonPushed = false;
 
@@ -123,6 +131,7 @@ char displayedText[MAX_CHAR_ON_SCREEN];
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_ADC_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
@@ -357,106 +366,6 @@ TIM_HandleTypeDef *findTimForThisCombo(uint8_t track, uint16_t freq, uint8_t vel
 	} //end if velocity == 0
 }
 
-//void setTimersFast(uint8_t coil, uint8_t freq, uint8_t velocity){
-//	//if velocity is 0, turn off that coil
-//	//if velocity is not 0, push the note down the chain
-//	//scaling not yet implemented
-//	if (velocity != 0) {
-//		switch (coil) {
-//		case 1:
-//			if (!coil1On) {
-//				setTimerFreqPulseFAST(&COIL1, freq, velocity, COIL1_CH);
-//				coil1On = true;
-//				coil1Freq = freq;
-//			} else
-//				setTimersFast(2, freq, velocity);
-//			break;
-//		case 2:
-//			if (!coil2On) {
-//				setTimerFreqPulseFAST(&COIL2, freq, velocity, COIL2_CH);
-//				coil2On = true;
-//				coil2Freq = freq;
-//			} else
-//				setTimersFast(3, freq, velocity);
-//			break;
-//		case 3:
-//			if (!coil3On) {
-//				setTimerFreqPulseFAST(&COIL3, freq, velocity, COIL3_CH);
-//				coil3On = true;
-//				coil3Freq = freq;
-//			} else
-//				setTimersFast(4, freq, velocity);
-//			break;
-//		case 4:
-//			if (!coil4On) {
-//				setTimerFreqPulseFAST(&COIL4, freq, velocity, COIL4_CH);
-//				coil4On = true;
-//				coil4Freq = freq;
-//			} else
-//				setTimersFast(5, freq, velocity);
-//			break;
-//		case 5:
-//			if (!coil5On) {
-//				setTimerFreqPulseFAST(&COIL5, freq, velocity, COIL5_CH);
-//				coil5On = true;
-//				coil5Freq = freq;
-//			}
-//			//uncommenting the else statement below will create a loop
-//			//else setTimersAccordingly(1, freq, velocity);
-//			break;
-//		}
-//	}			//end if (velocity != 0)
-//	else if (velocity == 0) {
-//		switch (coil) {
-//		case 1:
-//			if (coil1On && coil1Freq == freq) {
-//				setTimerFreqPulseFAST(&COIL1, 0, 0, COIL1_CH);
-//				coil1On = false;
-//				coil1Freq = 0;
-//			} else
-//				setTimersFast(2, freq, 0);
-//			break;
-//		case 2:
-//			if (coil2On && coil2Freq == freq) {
-//				setTimerFreqPulseFAST(&COIL2, 0, 0, COIL2_CH);
-//				coil2On = false;
-//				coil2Freq = 0;
-//			} else
-//				setTimersFast(3, freq, 0);
-//			break;
-//		case 3:
-//			if (coil3On && coil3Freq == freq) {
-//				setTimerFreqPulseFAST(&COIL3, 0, 0, COIL3_CH);
-//				coil3On = false;
-//				coil3Freq = 0;
-//			} else
-//				setTimersFast(4, freq, 0);
-//			break;
-//		case 4:
-//			if (coil4On && coil4Freq == freq) {
-//				setTimerFreqPulseFAST(&COIL4, 0, 0, COIL4_CH);
-//				coil4On = false;
-//				coil4Freq = 0;
-//			} else
-//				setTimersFast(5, freq, 0);
-//			break;
-//		case 5:
-//			if (coil5On && coil5Freq == freq) {
-//				setTimerFreqPulseFAST(&COIL5, 0, 0, COIL5_CH);
-//				coil5On = false;
-//				coil5Freq = 0;
-//			} else {	//I could have it wrap around, but no chances!!
-//				setTimerFreqPulseFAST(&COIL1, 0, 0, COIL1_CH);
-//				setTimerFreqPulseFAST(&COIL2, 0, 0, COIL2_CH);
-//				setTimerFreqPulseFAST(&COIL3, 0, 0, COIL3_CH);
-//				setTimerFreqPulseFAST(&COIL4, 0, 0, COIL4_CH);
-//				setTimerFreqPulseFAST(&COIL5, 0, 0, COIL5_CH);
-//			}
-//			break;
-//		} //end of switch
-//	} //end if velocity == 0
-//}
-
 /**
  * Allows the user to change number (3 digits) by scrolling
  * Options are: frequency, t_on, t_off
@@ -646,6 +555,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_ADC_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
@@ -667,14 +577,11 @@ int main(void)
 	initLCD(&lcd, &hi2c2, MAX_ROW, 20, 0x27);
 	setCursor(&lcd, 0, 0);
 
-	HAL_ADC_Start(&hadc);
-
-
 	HAL_GPIO_WritePin(GPIOB, Flash__wp_Pin | Flash__Hold_Pin, GPIO_PIN_SET);//active low signals
 
 	writeStatusLED(0b11001100);
 
-	HAL_ADC_Start_IT(&hadc);
+//	HAL_ADC_Start_IT(&hadc);
 
 	HAL_Delay(50);
 	fresult = f_mount(&fs, "", 1);
@@ -800,7 +707,7 @@ int main(void)
 
 				LCDPrintAtPos(&lcd, "BACK", 16, 2);
 				LCDPrintAtPos(&lcd, "Ontime:", 8, 3);
-				LCDPrintNumber(&lcd, onTime, 15, 3, 3);
+				LCDPrintNumber(&lcd, onTime[0], 15, 3, 3);
 				LCDPrintAtPos(&lcd, "us", 18, 3);
 				setCursor(&lcd, 0, field_select);
 			}
@@ -812,9 +719,9 @@ int main(void)
 					printed = true;
 					setCursor(&lcd, 0, field_select);
 				}
-				if (onTime != prevOnTime) {
-					prevOnTime = onTime;
-					LCDPrintNumber(&lcd, onTime, 15, 3, 3);
+				if (onTime[0] != prevOnTime[0]) {
+					prevOnTime[0] = onTime[0];
+					LCDPrintNumber(&lcd, onTime[0], 15, 3, 3);
 					setCursor(&lcd, 0, field_select);
 				}
 
@@ -836,7 +743,7 @@ int main(void)
 					if (time <= timeStarted + t_on) {
 						if(firstOpenDir || frequency != prevFrequency){
 							prevFrequency = frequency;
-							setTimerFrequencyPulseWidth(&COIL1, frequency, onTime, COIL1_CH);
+							setTimerFrequencyPulseWidth(&COIL1, frequency, onTime[0], COIL1_CH);
 							firstOpenDir = false;
 						}
 					}
@@ -962,7 +869,7 @@ int main(void)
 					LCDPrintAtPos(&lcd, "BACK", 1, 2);
 
 					LCDPrintAtPos(&lcd, "Ontime:", 1, 3);
-					LCDPrintNumber(&lcd, onTime, 8, 3, 3);
+					LCDPrintNumber(&lcd, onTime[0], 8, 3, 3);
 					LCDPrintAtPos(&lcd, "us", 11, 3);
 					setCursor(&lcd, 0, field_select);
 				}
@@ -974,9 +881,9 @@ int main(void)
 						printed = true;
 						setCursor(&lcd, 0, field_select);
 					}
-					if (onTime != prevOnTime) {
-						prevOnTime = onTime;
-						LCDPrintNumber(&lcd, onTime, 8, 3, 3);
+					if (onTime[0] != prevOnTime[0]) {
+						prevOnTime[0] = onTime[0];
+						LCDPrintNumber(&lcd, onTime[0], 8, 3, 3);
 						setCursor(&lcd, 0, field_select);
 					}
 				}
@@ -990,16 +897,16 @@ int main(void)
 					}
 
 					if (!coil1On) {
-						setTimerFrequencyPulseWidth(&COIL1, frequency, onTime, COIL1_CH);
+						setTimerFrequencyPulseWidth(&COIL1, frequency, onTime[0], COIL1_CH);
 						coil1On = true;
 					}
 
-					if (prevFrequency != frequency || onTime != prevOnTime) {
+					if (prevFrequency != frequency || onTime[0] != prevOnTime[0]) {
 						turnOffAllCoils();
-						setTimerFrequencyPulseWidth(&COIL1, frequency, onTime, COIL1_CH);
+						setTimerFrequencyPulseWidth(&COIL1, frequency, (uint16_t)onTime[0], COIL1_CH);
 						prevFrequency = frequency;
-						prevOnTime = onTime;
-						LCDPrintNumber(&lcd, onTime, 8, 3, 3);
+						prevOnTime[0] = onTime[0];
+						LCDPrintNumber(&lcd, onTime[0], 8, 3, 3);
 						coil1On = true;
 						setCursor(&lcd, 0, field_select);
 					}
@@ -1088,16 +995,20 @@ int main(void)
 					break;
 		}
 
+		//https://www.youtube.com/watch?v=AloHXBk6Bfk
 		if((time - adcTime) > 50){
-			HAL_ADC_Start_IT(&hadc);
-			adcVal = HAL_ADC_GetValue(&hadc);
+			HAL_ADC_Stop_DMA(&hadc);  // Stop the DMA to ensure it resets
+			HAL_StatusTypeDef bruh = HAL_ADC_Start_DMA(&hadc, (uint32_t*) adc_dma_results, adcChannelCount);
+			adcTime = time;
+		}
+		if(adc_conv_complete){
+			adc_conv_complete = false;
 
 			//onTime = (uint8_t)((((float)adcVal) / 255)*MAX_PULSE_WIDTH);
-			onTime = (adcVal * MAX_PULSE_WIDTH) >> 8;
-			adcTime = time;
-			writeStatusLED(adcVal);
+			onTime[0] = (adc_dma_results[0] * MAX_PULSE_WIDTH) >> 8;
+			onTime[1] = (adc_dma_results[1] * MAX_PULSE_WIDTH) >> 8;
+			writeStatusLED(onTime[0]);
 		}
-
 	}
 }
 
@@ -1746,6 +1657,22 @@ static void MX_TIM11_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -1822,29 +1749,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
-void ADC_Select_CH0(void) {
-	ADC_ChannelConfTypeDef sConfig = { 0 };
-	/** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
-	 */
-	sConfig.Channel = ADC_CHANNEL_0;
-	sConfig.Rank = 1;
-	sConfig.SamplingTime = ADC_SAMPLETIME_4CYCLES;
-	if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK) {
-		Error_Handler();
-	}
-}
-void ADC_Select_CH2(void) {
-	ADC_ChannelConfTypeDef sConfig = { 0 };
-	/** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
-	 */
-	sConfig.Channel = ADC_CHANNEL_2;
-	sConfig.Rank = 2;
-	sConfig.SamplingTime = ADC_SAMPLETIME_4CYCLES;
-	if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK) {
-		Error_Handler();
-	}
-}
 
 void writeStatusLED(uint8_t status) {
 	HAL_GPIO_WritePin(stat595_SER_GPIO_Port, stat595_SER_Pin, GPIO_PIN_RESET);
@@ -1950,7 +1854,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		//auto reload every 160 cycles (5uS)
 		micros += 5;
 	} else if (htim == &htim7) {
-		//HAL_ADC_Start_IT(&hadc);
 		HAL_GPIO_TogglePin(LED_Heartbeat_GPIO_Port, LED_Heartbeat_Pin);
 	}
 }
@@ -1959,7 +1862,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 //	CDC_Transmit_FS(s, bytes);
 //}
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
-	adcVal = HAL_ADC_GetValue(hadc);
+	adc_conv_complete = true;
 }
 
 void SDModeChooseSong(){
@@ -2095,16 +1998,17 @@ void SDDealWithScreen(){
 		LCDPrintAtPos(&lcd, displayedText, 1, 1);
 
 		LCDPrintAtPos(&lcd, "Ton A:   us B:   us", 0, 3);
-		LCDPrintNumber(&lcd, onTime, 6, 3, 3);
-		LCDPrintNumber(&lcd, onTime, 14, 3, 3);
+		LCDPrintNumber(&lcd, onTime[0], 6, 3, 3);
+		LCDPrintNumber(&lcd, onTime[1], 14, 3, 3);
 
 		setCursor(&lcd, 16, 3);
 		printed = true;
 	}
-	if(onTime != prevOnTime){
-		prevOnTime = onTime;
-		LCDPrintNumber(&lcd, onTime, 6, 3, 3);
-		LCDPrintNumber(&lcd, onTime, 14, 3, 3);
+	if(onTime[0] != prevOnTime[0] || onTime[1] != prevOnTime[1]){
+		prevOnTime[0] = onTime[0];
+		prevOnTime[1] = onTime[1];
+		LCDPrintNumber(&lcd, onTime[0], 6, 3, 3);
+		LCDPrintNumber(&lcd, onTime[1], 14, 3, 3);
 		setCursor(&lcd, 16, 3);
 	}
 }
@@ -2116,7 +2020,8 @@ void SDDealWithScreen(){
 #define SD_READ_ERR		4
 
 typedef struct noteEvent{
-	uint32_t timeOfEvent, bitsForPWM;
+	uint32_t timeOfEvent;
+	uint32_t bitsForPWM[2];
 	uint8_t track;
 	uint8_t noteNum;
 	uint16_t frequency, prescaler, autoReloadReg;
@@ -2127,8 +2032,6 @@ uint8_t sdModeState = SD_GET_FIRST, track, noteNum;
 uint32_t tNext;
 NoteEvent nextEvent;
 float velRatio;
-uint16_t actualOnTimeSD;
-
 TIM_HandleTypeDef *doThisCoil;
 
 void SDMode(){
@@ -2197,11 +2100,19 @@ void SDMode(){
 			}
 
 			break;
-		case SD_CALC_NEXT:
+		case SD_CALC_NEXT: {
 			//uint32_t tBeforeCalc = HAL_GetTick();
 			//(velocity / 127) * onTime
-			actualOnTimeSD = (nextEvent.velocity * onTime) >> 7;
-			if(actualOnTimeSD > MAX_PULSE_WIDTH) actualOnTimeSD = MAX_PULSE_WIDTH;
+
+			// Calculate both bits for PWM since we don't know which note this coil is going on yet. 
+			// We don't want a note to go on the wrong coil at a really different ontime.
+			uint16_t actualOnTimeSD[2];
+			actualOnTimeSD[0] = (nextEvent.velocity * onTime[0]) >> 7;
+			actualOnTimeSD[1] = (nextEvent.velocity * onTime[1]) >> 7;
+
+			if(actualOnTimeSD[0] > MAX_PULSE_WIDTH) actualOnTimeSD[0] = MAX_PULSE_WIDTH;
+			if(actualOnTimeSD[1] > MAX_PULSE_WIDTH) actualOnTimeSD[1] = MAX_PULSE_WIDTH;
+
 			if(nextEvent.frequency > MAX_FREQUENCY) nextEvent.frequency = MAX_FREQUENCY;
 
 			if(nextEvent.frequency == 1)        nextEvent.prescaler = 512 - 1;
@@ -2215,30 +2126,38 @@ void SDMode(){
 			else if(nextEvent.frequency <= 511) nextEvent.prescaler = 2 - 1;
 			else nextEvent.prescaler = 1 - 1;
 
-
 			nextEvent.autoReloadReg = CPU_CLK / ((nextEvent.prescaler+1) * nextEvent.frequency);
 			double usPerBit = (double)(nextEvent.prescaler+1) / 32.0; //will get optimized by compiler
-			nextEvent.bitsForPWM = (uint32_t)((double)actualOnTimeSD / usPerBit);
+			nextEvent.bitsForPWM[0] = (uint32_t)((double)actualOnTimeSD[0] / usPerBit);
+			nextEvent.bitsForPWM[1] = (uint32_t)((double)actualOnTimeSD[1] / usPerBit);
 			//uint32_t timeForCalc = HAL_GetTick() - tBeforeCalc;
-
-
 
 			sdModeState = SD_WAIT_NEXT;
 			break;
+		}
 
-		case SD_WAIT_NEXT:
+		case SD_WAIT_NEXT:{
 			if((HAL_GetTick() - timeStarted > nextEvent.timeOfEvent)){
-				//uint32_t tBeforeFinding = HAL_GetTick(), tAFter;
+
+				// Find the coil that this note event is going on
 				doThisCoil = findTimForThisCombo(nextEvent.track, nextEvent.frequency, nextEvent.velocity);
-				//tAFter = HAL_GetTick();
+				uint32_t specific_bits;
+
+				// If COIL1 or COIL2, this is the big coil so use ontime[0]W
+				if(doThisCoil == &COIL1 || doThisCoil == &COIL2){
+					specific_bits = nextEvent.bitsForPWM[0];
+				}
+				else specific_bits = nextEvent.bitsForPWM[1];
+
+				// Finally, set the bits
 				if(nextEvent.velocity > 0){
 					doThisCoil->Instance->CCR1 = 0;
 					doThisCoil->Instance->CCR2 = 0;
 					__disable_irq();
 					doThisCoil->Instance->ARR = nextEvent.autoReloadReg;
 					doThisCoil->Instance->PSC = nextEvent.prescaler;
-					doThisCoil->Instance->CCR1 = nextEvent.bitsForPWM;
-					doThisCoil->Instance->CCR2 = nextEvent.bitsForPWM;
+					doThisCoil->Instance->CCR1 = specific_bits;
+					doThisCoil->Instance->CCR2 = specific_bits;
 					__enable_irq();
 				}
 				else{
@@ -2248,6 +2167,7 @@ void SDMode(){
 				sdModeState = SD_FETCH_NEXT;
 			}
 			break;
+		}
 
 		case SD_READ_ERR:
 			while(1){
@@ -2273,9 +2193,6 @@ void SDMode(){
 		}
 
 	}
-
-
-
 }
 
 /* USER CODE END 4 */
