@@ -571,6 +571,17 @@ int main(void)
   MX_USB_DEVICE_Init();
   MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
+
+  	HAL_TIM_PWM_Start(&COIL1, COIL1_CH);	//IFe96 1
+	HAL_TIM_PWM_Start(&COIL2, COIL2_CH);	//IFe96 2
+	HAL_TIM_PWM_Start(&COIL3, COIL3_CH);	//IFe96 3
+	HAL_TIM_PWM_Start(&COIL4, COIL4_CH);	//IFe96 4
+	HAL_TIM_PWM_Start(&COIL5, COIL5_CH);	//IFe96 5
+	htim2.Instance->CCR1 = 0;
+	htim9.Instance->CCR2 = 0;
+	htim3.Instance->CCR1 = 0;
+	htim4.Instance->CCR1 = 0;
+	htim10.Instance->CCR1 = 0;
 	//HAL_TIM_Base_Start_IT(&htim6);	//microseconds counter
 	HAL_TIM_Base_Start_IT(&htim7);
 
@@ -998,10 +1009,10 @@ int main(void)
 
 		//https://www.youtube.com/watch?v=AloHXBk6Bfk
 		if((time - adcTime) > 50){
-//			uint32_t t1 = HAL_GetTick();
+			// Adding to technical debt by not fixing DMA 
+			// Likely has to do with conversion
 			HAL_ADC_Stop_DMA(&hadc);  // Stop the DMA to ensure it resets
 			HAL_StatusTypeDef bruh = HAL_ADC_Start_DMA(&hadc, (uint32_t*) adc_dma_results, adcChannelCount);
-//			uint32_t t2 = HAL_GetTick();
 			adcTime = time;
 		}
 		if(adc_conv_complete){
