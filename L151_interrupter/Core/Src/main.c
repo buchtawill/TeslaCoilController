@@ -73,7 +73,7 @@ int16_t rotaryVal = 0, prevRotaryVal = 0;
 uint16_t adcVal;
 
 // onTime[0] is for the left fiber optic, onTime[1] is for the right fiber optic
-uint8_t onTime[2] = {0, 0};
+uint8_t onTime[2] = {40, 40};
 uint8_t prevOnTime[2] = {0, 0};
 uint32_t time1 = 0, time2 = 0;
 uint32_t diff = 0;
@@ -577,11 +577,12 @@ int main(void)
 	initLCD(&lcd, &hi2c2, MAX_ROW, 20, 0x27);
 	setCursor(&lcd, 0, 0);
 
-	HAL_GPIO_WritePin(GPIOB, Flash__wp_Pin | Flash__Hold_Pin, GPIO_PIN_SET);//active low signals
+//	HAL_GPIO_WritePin(GPIOB, Flash__wp_Pin | Flash__Hold_Pin, GPIO_PIN_SET);//active low signals
 
 	writeStatusLED(0b11001100);
 
 //	HAL_ADC_Start_IT(&hadc);
+//	HAL_StatusTypeDef bruh = HAL_ADC_Start_DMA(&hadc, (uint32_t*) adc_dma_results, adcChannelCount);
 
 	HAL_Delay(50);
 	fresult = f_mount(&fs, "", 1);
@@ -997,8 +998,10 @@ int main(void)
 
 		//https://www.youtube.com/watch?v=AloHXBk6Bfk
 		if((time - adcTime) > 50){
+//			uint32_t t1 = HAL_GetTick();
 			HAL_ADC_Stop_DMA(&hadc);  // Stop the DMA to ensure it resets
 			HAL_StatusTypeDef bruh = HAL_ADC_Start_DMA(&hadc, (uint32_t*) adc_dma_results, adcChannelCount);
+//			uint32_t t2 = HAL_GetTick();
 			adcTime = time;
 		}
 		if(adc_conv_complete){
