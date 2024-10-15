@@ -14,9 +14,9 @@
 #define MAX_PULSE_WIDTH 150 //us
 #define MIN_PULSE_WIDTH 5
 
-#define MAX_FREQUENCY 950 //Hz
-#define MAX_TIME_ON 500 //ms
-#define MAX_TIME_OFF 500 //ms
+#define MAX_FREQUENCY 1000 //Hz
+#define MAX_TIME_ON   500 //ms
+#define MAX_TIME_OFF  500 //ms
 
 
 

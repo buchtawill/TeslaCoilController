@@ -2081,6 +2081,7 @@ void SDModeChooseSong(){
 				songNum = 0;
 			}
 			else{
+				clearDisplay(&lcd);
 				isPlaying = true;
 				first_function_call = true;
 			}
@@ -2135,6 +2136,26 @@ float velRatio;
 TIM_HandleTypeDef *doThisCoil;
 
 void SDMode(){
+
+	// TODO: Figure out why the following songs cause the uc to brick
+	// William tell overture
+	// Popcorn
+	// Thru the fire and flames
+	// Sail
+	// Peanuts linus and lucy
+	// Mission impossible
+	// Hall of the mountain king
+	// Ghost busters
+	// Entertainer
+	// Avast
+
+	//South park
+	// nsmb underground: fails halfway thru
+	// Carol of bells    ^^^^^^^^^^^^^^^^^^
+	// Mario win         ^^^^^^^^^^^^^^^^^^
+
+	//Also, when going up a directory, then back into a new one, encounter SD card error
+
 
 	// If we are not playing a song, choose a song to play.
 	// SDModeChooseSong will open a directory, copy all files and dirs into fileNames[], and begin
