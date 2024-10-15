@@ -29,6 +29,7 @@
 #include "Timers.h"
 #include "I2C_LCD.h"
 #include <math.h>
+#include "ff.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -123,8 +124,10 @@ boolean inSubmode = false;
 boolean updateTimeScroll = true;
 uint32_t timeForScroll = 0;
 int fileCount = 0;
-char fileNames[MAX_FILE_LENGTH][MAX_FILENAME_LENGTH];
+int directory_depth = 0;
+char fileNames[MAX_NUM_FILES][MAX_FILENAME_LENGTH];
 char displayedText[MAX_CHAR_ON_SCREEN];
+boolean is_dir[MAX_NUM_FILES];
 
 /* USER CODE END PV */
 
@@ -600,6 +603,7 @@ int main(void)
 	if (fresult != FR_OK)
 		printToUSB("Error mounting SD card");
 
+	fresult = f_opendir(&dir, "");
 
   /* USER CODE END 2 */
 
@@ -612,26 +616,25 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
 	//Open SD card and store all file names in an array
-	fresult = f_opendir(&dir, "");
+	// fresult = f_opendir(&dir, "");
 
+	// if (fresult == FR_OK) {
+	// 	// Read the directory and store file names
+	// 	for (;;) {
+	// 		fresult = f_readdir(&dir, &fno);
+	// 		if (fresult != FR_OK || fno.fname[0] == 0) {
+	// 			break; // No more files in the directory or an error occurred
+	// 		}
+	// 		if (fno.fattrib & AM_DIR) {
+	// 			// Skip directories
+	// 			continue;
+	// 		}
 
-	if (fresult == FR_OK) {
-		// Read the directory and store file names
-		for (;;) {
-			fresult = f_readdir(&dir, &fno);
-			if (fresult != FR_OK || fno.fname[0] == 0) {
-				break; // No more files in the directory or an error occurred
-			}
-			if (fno.fattrib & AM_DIR) {
-				// Skip directories
-				continue;
-			}
-
-			// Copy the file name to the array
-			strncpy(fileNames[fileCount++], fno.fname, 30);
-		}
-		f_closedir(&dir);
-	}
+	// 		// Copy the file name to the array
+	// 		strncpy(fileNames[fileCount++], fno.fname, 30);
+	// 	}
+	// 	f_closedir(&dir);
+	// }
 
 	//The last option is always "BACK" to mode selection
 	strncpy(fileNames[fileCount], "BACK", 30);
@@ -1879,7 +1882,62 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	adc_conv_complete = true;
 }
 
+/*
+ * Helper function to populate filenNames array.
+ * Reads the contents of the currently open directory "dir"
+ * ASSUMES THAT dir IS AN ACTIVELY OPEN DIRECTORY
+ * Always sets the last entry to be "BACK"
+ */
+void populate_filenames(){
+
+	// Reset file count
+	fileCount = 0;
+
+	// Loop thru directory
+	for(;;){
+		fresult = f_readdir(&dir, &fno);
+		if (fresult != FR_OK || fno.fname[0] == 0) {
+			break; // No more files in the directory or an error occurred
+		}
+		else{
+			memset(&fileNames[fileCount], '\0', MAX_FILENAME_LENGTH);
+			strncpy(fileNames[fileCount], fno.fname, MAX_FILENAME_LENGTH);
+			if (fno.fattrib & AM_DIR){
+				is_dir[fileCount] = true;
+//				fileNames[fileCount][strlen((const char*)&fileNames[fileCount])] = '/';
+			}
+			else{
+				is_dir[fileCount] = false;
+			}
+			fileCount++;
+		}
+		if(fileCount == MAX_NUM_FILES) break;
+	}
+
+	// Set the last filename to "BACK"
+	strncpy(fileNames[fileCount], "BACK", MAX_FILENAME_LENGTH);
+}
+
+/*
+ * If it's the first time in this function call, open root directory and copy contents to fileNames
+ * Count the number of entries in the directory
+ * fileNames is an array of chars, 32 entries, each entry 64 chars
+ * The integer songNum is used to index fileNames.
+ * Scroll as normal. If the button_pressed flag is set, check if fileNames[songNum] is a directory.
+ * If it's a directory, open it, set songNum to 0, re-read the contents
+ * If it's a song, set isPlaying to true. sdMode will handle opening the file.
+ * If it's "BACK", either go to '..' or go back to MODE_SELECT. Can tell based on directory_depth variable.
+ */
 void SDModeChooseSong(){
+
+	// If it's the first function call, open "" directory
+	static boolean first_function_call = true;
+	if(first_function_call){
+		fresult = f_opendir(&dir, ".");
+		populate_filenames();
+		first_function_call = false;
+	}
+
 	// No need to print again if no need to refresh
 	// e.g. Going to a new page
 	if (!printed) {
@@ -1897,7 +1955,6 @@ void SDModeChooseSong(){
 
 	// If the current selected song is longer than what the screen can display,
 	// give it scroll effect
-
 	if (strlen(fileNames[songNum]) > MAX_CHAR_ON_SCREEN) {
 		//begin non blocking delay
 		if(updateTimeScroll == true){
@@ -1972,9 +2029,6 @@ void SDModeChooseSong(){
 //				songNum = fileCount;
 				songNum = fileCount;
 			}
-//			else if (songNum % MAX_ROW == 0) {
-//				songNum -= MAX_ROW;
-//			}
 			else {
 				songNum --;
 			}
@@ -1983,21 +2037,53 @@ void SDModeChooseSong(){
 		LCDPrintAtPos(&lcd, ">", 0, songNum % MAX_ROW);
 		setCursor(&lcd, 0, songNum % MAX_ROW);
 		prevRotaryVal =  rotaryVal;
-	}
+	} // End handle rotary
 
-	// Song selected, either a song or "BACK" button
+	// Song selected, either a song, directory, or "BACK" button
 	if (buttonPushed) {
 		buttonPushed = false;
 		printed = false;
-		clearDisplay(&lcd);
 
+		// if it's the same as fileCount, go back to parent directory, OR go to MODE_SELECT
 		if (songNum == fileCount) {
-			isDirOpen = false;
-			f_closedir(&dir);
-			state = MODE_SELECT;
+			// Go back to mode select
+			if(directory_depth == 0){
+//				isDirOpen = false;
+//				f_closedir(&dir);
+//				songNum = 0;
+				state = MODE_SELECT;
+
+				// Reset to repopulate first directory
+				first_function_call = true;
+				clearDisplay(&lcd);
+			}
+
+			//Else open the parent directory
+			else{
+				songNum = 0;
+				fresult = f_chdir("..");
+				fresult = f_opendir(&dir, ".");
+				populate_filenames();
+				directory_depth--;
+			}
 		}
+
+		// Otherwise, the entry is a song or a directory
+		// If a directory, open it
 		else {
-			isPlaying = true;
+			if(is_dir[songNum] == true){
+				directory_depth++;
+				//Remove the '/' at the end of directory before changing dirs
+//				fileNames[songNum][strlen((const char*)&fileNames[songNum]) - 1] = '\0';
+				fresult = f_chdir((const TCHAR*)&fileNames[songNum]);
+				fresult = f_opendir(&dir, ".");
+				populate_filenames();
+				songNum = 0;
+			}
+			else{
+				isPlaying = true;
+				first_function_call = true;
+			}
 		}
 	}
 }
@@ -2049,11 +2135,10 @@ float velRatio;
 TIM_HandleTypeDef *doThisCoil;
 
 void SDMode(){
-	if (!isDirOpen) {
-		fresult = f_opendir(&dir, "");
-		isDirOpen = true;
-	}
 
+	// If we are not playing a song, choose a song to play.
+	// SDModeChooseSong will open a directory, copy all files and dirs into fileNames[], and begin
+	// Looping thru them. This function will handle opening the correct directory and setting
 	if (!isPlaying) SDModeChooseSong();
 
 	// isPlaying = true
@@ -2061,6 +2146,10 @@ void SDMode(){
 		SDDealWithScreen();
 		switch(sdModeState){
 		case SD_GET_FIRST:
+//			if (!isDirOpen) {
+//				fresult = f_opendir(&dir, "");
+//				isDirOpen = true;
+//			}
 			f_open(&fil, fileNames[songNum], FA_READ);
 			fresult = f_read(&fil, &numEventsSplit[0], 2, &bytesRead);
 			if(fresult != FR_OK){
@@ -2184,6 +2273,8 @@ void SDMode(){
 		}
 
 		case SD_READ_ERR:
+			clearDisplay(&lcd);
+			LCDPrintAtPos(&lcd, "SD Card Error!!!!", 0, 0);
 			while(1){
 
 			}

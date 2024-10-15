@@ -110,6 +110,8 @@ void printToUSB(char* s);
 #define COIL4_CH TIM_CHANNEL_1
 #define COIL5_CH TIM_CHANNEL_1
 
+
+
 #define SD_SPI_HANDLE 	hspi1
 //#define SD_CS_GPIO_Port	SPI1_SS_GPIO_Port
 //#define SD_CS_Pin		SPI1_SS_Pin
@@ -144,9 +146,9 @@ void printToUSB(char* s);
 
 /* Display constant Definition ------------------------------------------------------*/
 #define MAX_ROW 			4
-#define MAX_CHAR_ON_SCREEN 	19
-#define MAX_FILE_LENGTH 	20
-#define MAX_FILENAME_LENGTH 32
+#define MAX_CHAR_ON_SCREEN 	19 // Maximum number of characters the display can show
+#define MAX_NUM_FILES    	32
+#define MAX_FILENAME_LENGTH 64
 
 #define FREQ_DISP_POS 	6
 #define T_ON_DISP_POS 	6
