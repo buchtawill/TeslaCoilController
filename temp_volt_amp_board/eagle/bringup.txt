@@ -1,0 +1,45 @@
+MAIN BOARD
+-----------------------------------
+ Progress
+ - All shift registers have 5V
+ - All 3v3 pins on STM32 have power
+ - No shorts
+ 
+ Next Steps
+ - Cycle numbers thru all 7-seg displays, measure current draw
+
+
+
+
+DAUGHTER BOARD A - Bus voltage: 350V / 175V per
+-----------------------------------
+ - 5V buck working
+ - ADP1:  working
+ - ADP2:  working
+ - ADPST: working
+
+Unpopulated:
+ - R3, R4, R5
+ - R1
+ - 
+TODO:
+ - C16, C20: Fix ground
+ - R3 / R4: Populate R4 with resistor
+ - R5: Populate with 100k resistor
+
+
+DAUGHTER BOARD B - Bus voltage: 320V
+-----------------------------------
+ - 5v buck working
+ - ADP1:  No short with 3v3 directly in. LED good
+ - ADP2:  working
+ - ADPST: No short with 3v3 directly in. LED good 
+
+Unpopulated:
+ - 
+
+
+
+
+
+
