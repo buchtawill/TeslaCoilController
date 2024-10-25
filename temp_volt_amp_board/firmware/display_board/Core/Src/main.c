@@ -102,12 +102,61 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
+  // Enable outputs
+  HAL_GPIO_WritePin(OE_B_GPIO_Port, OE_B_Pin, GPIO_PIN_RESET);
+
+  OutgoingMessage m;
+  m.current[0] = 255;
+  m.current[1] = 255;
+  m.voltage[0] = 255;
+  m.voltage[1] = 255;
+  m.temp[0] = 255;
+  m.temp[1] = 255;
+  m.digits  = DIGITS(0);
+
+  uint8_t tx_buf[7];
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  //	  HAL_Delay(1000);
+	  //	  int x = 10;
+	  //	  x += 50;
+//	  HAL_GPIO_TogglePin(OE_B_GPIO_Port, OE_B_Pin);
+//	  HAL_Delay(10);
+
+	  //message order: digits, temp[1], voltage[1], current[1], current[0], voltage[0], temp[0]
+	  static int i = 0;
+	  m.digits = DIGITS(i++);
+	  if(i == 4) i = 0;
+
+	  HAL_GPIO_WritePin(RCK_GPIO_Port, RCK_Pin, GPIO_PIN_RESET);
+
+	  tx_buf[0] = m.digits;
+	  tx_buf[1] = m.temp[1];
+	  tx_buf[2] = m.voltage[1];
+	  tx_buf[3] = m.current[1];
+	  tx_buf[4] = m.current[0];
+	  tx_buf[5] = m.voltage[0];
+	  tx_buf[6] = m.temp[0];
+
+//	  HAL_SPI_Transmit(&hspi1, &m.digits, sizeof(m.digits), 100);
+//	  HAL_SPI_Transmit(&hspi1, &m.temp[1], 1, 100);
+//	  HAL_SPI_Transmit(&hspi1, &m.voltage[1], 1, 100);
+//	  HAL_SPI_Transmit(&hspi1, &m.current[1], 1, 100);
+//	  HAL_SPI_Transmit(&hspi1, &m.current[0], 1, 100);
+//	  HAL_SPI_Transmit(&hspi1, &m.voltage[0], 1, 100);
+//	  HAL_SPI_Transmit(&hspi1, &m.temp[0], 1, 100);
+	  HAL_SPI_Transmit(&hspi1, &tx_buf, sizeof(tx_buf), 100);
+
+	  // Clock to output registers
+	  HAL_GPIO_WritePin(RCK_GPIO_Port, RCK_Pin, GPIO_PIN_SET);
+
+//	  HAL_Delay(1000);
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -303,7 +352,6 @@ static void MX_TIM2_Init(void)
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
 
   /* USER CODE BEGIN TIM2_Init 1 */
 
@@ -323,28 +371,15 @@ static void MX_TIM2_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
-  {
-    Error_Handler();
-  }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 100-1;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
-  HAL_TIM_MspPostInit(&htim2);
 
 }
 
@@ -365,14 +400,14 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(RCK_GPIO_Port, RCK_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, RCK_Pin|OE_B_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : RCK_Pin */
-  GPIO_InitStruct.Pin = RCK_Pin;
+  /*Configure GPIO pins : RCK_Pin OE_B_Pin */
+  GPIO_InitStruct.Pin = RCK_Pin|OE_B_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(RCK_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
