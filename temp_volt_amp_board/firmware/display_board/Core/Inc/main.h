@@ -31,6 +31,8 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "seven_seg.h"
+
 
 /* USER CODE END Includes */
 
@@ -55,8 +57,9 @@ extern "C" {
 #define BIT6 	0b01000000
 #define BIT7 	0b10000000
 
-#define DIGITS(i) ((BIT4 | BIT0) << i)
 /* USER CODE END EM */
+
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
@@ -68,25 +71,13 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define RCK_Pin GPIO_PIN_4
 #define RCK_GPIO_Port GPIOA
-#define OE_B_Pin GPIO_PIN_15
-#define OE_B_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 
-/**
- * Outgoing SPI message struct containing data for 7 shift registers.
- * current[0] is the display on the left, current[1] is the display on the right.
- * Same is true for voltage and temp.
- * digits controls which digits are to be on.
- *
- * Set digits to be one of DIGITS(i), where 0 is the left digit, 3 is the rightmost digit
- */
-typedef struct outgoing_msg{
-	uint8_t current[2];
-	uint8_t voltage[2];
-	uint8_t temp[2];
-	uint8_t digits;
-}OutgoingMessage;
+#define boolean uint8_t
+#define true  1
+#define false 0
+
 
 /* USER CODE END Private defines */
 

@@ -21,6 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "seven_seg.h"
 
 /* USER CODE END Includes */
 
@@ -41,6 +42,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
 
 CAN_HandleTypeDef hcan1;
 
@@ -50,11 +52,16 @@ TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
 
+volatile uint16_t adc_dma_result;
+const int         adcChannelCount = 1;
+volatile boolean  adc_conv_complete = false; //set by callback
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_CAN1_Init(void);
 static void MX_SPI1_Init(void);
@@ -65,6 +72,25 @@ static void MX_TIM2_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+// Send an SPI message
+// Need to call this function every main loop, or at least 240Hz
+HAL_StatusTypeDef display_loop(CoilGroup *p_coils){
+
+	static uint8_t current_digit = 0;
+	current_digit++;
+	if(current_digit > 3) current_digit = 0;
+
+	uint8_t tx_buf[7];
+	populate_tx_buf(tx_buf, p_coils, current_digit);
+
+	HAL_GPIO_WritePin(RCK_GPIO_Port, RCK_Pin, GPIO_PIN_RESET);
+
+	HAL_SPI_Transmit(&hspi1, (uint8_t*)&tx_buf, (uint16_t)sizeof(tx_buf), 100);
+
+	// Clock to output registers
+	HAL_GPIO_WritePin(RCK_GPIO_Port, RCK_Pin, GPIO_PIN_SET);
+}
 
 /* USER CODE END 0 */
 
@@ -96,25 +122,24 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_ADC1_Init();
   MX_CAN1_Init();
   MX_SPI1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
-  // Enable outputs
-  HAL_GPIO_WritePin(OE_B_GPIO_Port, OE_B_Pin, GPIO_PIN_RESET);
+  // Start DMA
+  HAL_StatusTypeDef adc_start_stat = HAL_ADC_Start_DMA(&hadc1, (uint32_t*) &adc_dma_result, adcChannelCount);
+  // HAL_ADC_Stop_DMA(&hadc1);
 
-  OutgoingMessage m;
-  m.current[0] = 255;
-  m.current[1] = 255;
-  m.voltage[0] = 255;
-  m.voltage[1] = 255;
-  m.temp[0] = 255;
-  m.temp[1] = 255;
-  m.digits  = DIGITS(0);
+  // Start PWM on OE
+  htim2.Instance->CCR1 = 500-1;
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
 
-  uint8_t tx_buf[7];
+  // Create coil groups
+  CoilGroup coils[2];
+
 
   /* USER CODE END 2 */
 
@@ -122,40 +147,40 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  //	  HAL_Delay(1000);
-	  //	  int x = 10;
-	  //	  x += 50;
-//	  HAL_GPIO_TogglePin(OE_B_GPIO_Port, OE_B_Pin);
-//	  HAL_Delay(10);
 
-	  //message order: digits, temp[1], voltage[1], current[1], current[0], voltage[0], temp[0]
-	  static int i = 0;
-	  m.digits = DIGITS(i++);
-	  if(i == 4) i = 0;
+	  display_loop(coils);
 
-	  HAL_GPIO_WritePin(RCK_GPIO_Port, RCK_Pin, GPIO_PIN_RESET);
+	  HAL_Delay(1);
 
-	  tx_buf[0] = m.digits;
-	  tx_buf[1] = m.temp[1];
-	  tx_buf[2] = m.voltage[1];
-	  tx_buf[3] = m.current[1];
-	  tx_buf[4] = m.current[0];
-	  tx_buf[5] = m.voltage[0];
-	  tx_buf[6] = m.temp[0];
+	  //Update display number
+	  static uint32_t num_time = 0;
+	  if(HAL_GetTick() - num_time > 10){
+		  num_time = HAL_GetTick();
 
-//	  HAL_SPI_Transmit(&hspi1, &m.digits, sizeof(m.digits), 100);
-//	  HAL_SPI_Transmit(&hspi1, &m.temp[1], 1, 100);
-//	  HAL_SPI_Transmit(&hspi1, &m.voltage[1], 1, 100);
-//	  HAL_SPI_Transmit(&hspi1, &m.current[1], 1, 100);
-//	  HAL_SPI_Transmit(&hspi1, &m.current[0], 1, 100);
-//	  HAL_SPI_Transmit(&hspi1, &m.voltage[0], 1, 100);
-//	  HAL_SPI_Transmit(&hspi1, &m.temp[0], 1, 100);
-	  HAL_SPI_Transmit(&hspi1, &tx_buf, sizeof(tx_buf), 100);
+		  static uint16_t num = 0;
+		  num++;
+		  set_seg7_int(&coils[0].temp, num);
+		  set_seg7_int(&coils[0].voltage, num);
+		  set_seg7_int(&coils[0].current, num);
+		  set_seg7_int(&coils[1].temp, num);
+		  set_seg7_int(&coils[1].voltage, num);
+		  set_seg7_int(&coils[1].current, num);
 
-	  // Clock to output registers
-	  HAL_GPIO_WritePin(RCK_GPIO_Port, RCK_Pin, GPIO_PIN_SET);
+		  if(num > 9999) num = 0;
+	  }
 
-//	  HAL_Delay(1000);
+	  // Update adc value and set PWM
+	  static uint32_t adc_time = 0;
+	  if(adc_conv_complete){
+		  if(HAL_GetTick() - adc_time > 20){
+			  adc_time = HAL_GetTick();
+			  adc_conv_complete = false;
+			  htim2.Instance->CCR1 = adc_dma_result;
+
+			  // Start ADC DMA again
+			  adc_start_stat = HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc_dma_result, adcChannelCount);
+		  }
+	  }
 
     /* USER CODE END WHILE */
 
@@ -238,7 +263,7 @@ static void MX_ADC1_Init(void)
   */
   hadc1.Instance = ADC1;
   hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
-  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
@@ -252,7 +277,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_13CYCLES_5;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -352,15 +377,16 @@ static void MX_TIM2_Init(void)
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
 
   /* USER CODE BEGIN TIM2_Init 1 */
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 0;
+  htim2.Init.Prescaler = 24-1;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 1000-1;
-  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV2;
+  htim2.Init.Period = 4096-1;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
   {
@@ -371,15 +397,44 @@ static void MX_TIM2_Init(void)
   {
     Error_Handler();
   }
+  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 500-1;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
+  HAL_TIM_MspPostInit(&htim2);
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 
 }
 
@@ -400,21 +455,23 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, RCK_Pin|OE_B_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(RCK_GPIO_Port, RCK_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : RCK_Pin OE_B_Pin */
-  GPIO_InitStruct.Pin = RCK_Pin|OE_B_Pin;
+  /*Configure GPIO pin : RCK_Pin */
+  GPIO_InitStruct.Pin = RCK_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  HAL_GPIO_Init(RCK_GPIO_Port, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
-
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
+	adc_conv_complete = true;
+}
 /* USER CODE END 4 */
 
 /**
