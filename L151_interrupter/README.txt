@@ -14,4 +14,12 @@ Important notes:
         - dual_coils/
     Upon boot, the STM32 reads and stores all filenames from both these directories.
     Filenames are limited to 64 characters, including extension
-    Up to 32 files can be in each directory
+    Up to 32 files can be in each directory (Fix this in the future)
+
+    Need to enable "#define _FS_RPATH 1" in L151_interrupter\FATFS\Target\ffconf.h to enable "chdir()" function
+
+    Currently debugging an issue with findTimForThisCombo() returning nothing.
+    eventCounter = 2
+    nextevent.track = 2
+    nextEvent.frequency = 415
+    nextEvent.velocity = 100

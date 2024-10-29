@@ -110,7 +110,20 @@ void printToUSB(char* s);
 #define COIL4_CH TIM_CHANNEL_1
 #define COIL5_CH TIM_CHANNEL_1
 
+#define SD_GET_FIRST	0
+#define SD_FETCH_NEXT	1
+#define	SD_CALC_NEXT	2
+#define SD_WAIT_NEXT	3
+#define SD_READ_ERR		4
 
+typedef struct noteEvent{
+	uint32_t timeOfEvent;
+	uint32_t bitsForPWM[2];
+	uint8_t track;
+	uint8_t noteNum;
+	uint16_t frequency, prescaler, autoReloadReg;
+	uint8_t velocity;
+}NoteEvent;
 
 #define SD_SPI_HANDLE 	hspi1
 //#define SD_CS_GPIO_Port	SPI1_SS_GPIO_Port

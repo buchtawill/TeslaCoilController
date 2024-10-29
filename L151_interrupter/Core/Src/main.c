@@ -86,13 +86,14 @@ volatile boolean  adc_conv_complete = false; //set by callback
 
 boolean buttonPushed = false;
 
-uint16_t noteFreq[60] = {
+uint16_t noteFreq[72] = {
 		//c,      c#,     d,      d#,     e,      f,      f#,     G,      g#,     a,      a#,     b
-		 33,      35,     37,     39,     41,     44,     46,     49,     52,     55,     58,     61, //1's
-		 65,      69,     73,     78,     82,     87,     93,     98,     104,    110,    117,    123, //2's
-		 131,     139,    147,    156,    165,    175,    185,    196,    208,    220,    233,    247, //3's
-		 262,     277,    294,    311,    330,    349,    370,    392,    415,    440,    466,    494, //4's
-		 523,     554,    587,    622,    659,    698,    740,    784,    831,    880,    932,    988 //5's
+		 33,      35,     37,     39,     41,     44,     46,     49,     52,     55,     58,     61,  // 1's
+		 65,      69,     73,     78,     82,     87,     93,     98,     104,    110,    117,    123, // 2's
+		 131,     139,    147,    156,    165,    175,    185,    196,    208,    220,    233,    247, // 3's
+		 262,     277,    294,    311,    330,    349,    370,    392,    415,    440,    466,    494, // 4's
+		 523,     554,    587,    622,    659,    698,    740,    784,    831,    880,    932,    988, // 5's
+		 1047,    1109,   1175,  1245,   1319,   1397,   1480,   1568,   1661,   1760,   1865,   1976  // 6's
 };
 
 FATFS fs;
@@ -274,7 +275,7 @@ TIM_HandleTypeDef *findTimForThisCombo(uint8_t track, uint16_t freq, uint8_t vel
 				coil1Freq = freq;
 				return &COIL1;
 			} else
-				findTimForThisCombo(2, freq, velocity);
+				return findTimForThisCombo(2, freq, velocity);
 			break;
 		case 2:
 			if (!coil2On) {
@@ -283,7 +284,7 @@ TIM_HandleTypeDef *findTimForThisCombo(uint8_t track, uint16_t freq, uint8_t vel
 				coil2Freq = freq;
 				return &COIL2;
 			} else
-				findTimForThisCombo(3, freq, velocity);
+				return findTimForThisCombo(3, freq, velocity);
 			break;
 		case 3:
 			if (!coil3On) {
@@ -292,7 +293,7 @@ TIM_HandleTypeDef *findTimForThisCombo(uint8_t track, uint16_t freq, uint8_t vel
 				coil3Freq = freq;
 				return &COIL3;
 			} else
-				findTimForThisCombo(4, freq, velocity);
+				return findTimForThisCombo(4, freq, velocity);
 			break;
 		case 4:
 			if (!coil4On) {
@@ -301,7 +302,7 @@ TIM_HandleTypeDef *findTimForThisCombo(uint8_t track, uint16_t freq, uint8_t vel
 				coil4Freq = freq;
 				return &COIL4;
 			} else
-				findTimForThisCombo(5, freq, velocity);
+				return findTimForThisCombo(5, freq, velocity);
 			break;
 		case 5:
 			if (!coil5On) {
@@ -322,7 +323,7 @@ TIM_HandleTypeDef *findTimForThisCombo(uint8_t track, uint16_t freq, uint8_t vel
 				coil1Freq = 0;
 				return &COIL1;
 			} else
-				findTimForThisCombo(2, freq, 0);
+				return findTimForThisCombo(2, freq, 0);
 			break;
 		case 2:
 			if (coil2On && coil2Freq == freq) {
@@ -331,7 +332,7 @@ TIM_HandleTypeDef *findTimForThisCombo(uint8_t track, uint16_t freq, uint8_t vel
 				coil2Freq = 0;
 				return &COIL2;
 			} else
-				findTimForThisCombo(3, freq, 0);
+				return findTimForThisCombo(3, freq, 0);
 			break;
 		case 3:
 			if (coil3On && coil3Freq == freq) {
@@ -340,7 +341,7 @@ TIM_HandleTypeDef *findTimForThisCombo(uint8_t track, uint16_t freq, uint8_t vel
 				coil3Freq = 0;
 				return &COIL3;
 			} else
-				findTimForThisCombo(4, freq, 0);
+				return findTimForThisCombo(4, freq, 0);
 			break;
 		case 4:
 			if (coil4On && coil4Freq == freq) {
@@ -349,7 +350,7 @@ TIM_HandleTypeDef *findTimForThisCombo(uint8_t track, uint16_t freq, uint8_t vel
 				coil4Freq = 0;
 				return &COIL4;
 			} else
-				findTimForThisCombo(5, freq, 0);
+				return findTimForThisCombo(5, freq, 0);
 			break;
 		case 5:
 			if (coil5On && coil5Freq == freq) {
@@ -367,6 +368,7 @@ TIM_HandleTypeDef *findTimForThisCombo(uint8_t track, uint16_t freq, uint8_t vel
 			break;
 		} //end of switch
 	} //end if velocity == 0
+	return NULL;
 }
 
 /**
@@ -1015,7 +1017,8 @@ int main(void)
 			// Adding to technical debt by not fixing DMA 
 			// Likely has to do with conversion
 			HAL_ADC_Stop_DMA(&hadc);  // Stop the DMA to ensure it resets
-			HAL_StatusTypeDef bruh = HAL_ADC_Start_DMA(&hadc, (uint32_t*) adc_dma_results, adcChannelCount);
+//			HAL_StatusTypeDef bruh = HAL_ADC_Start_DMA(&hadc, (uint32_t*) adc_dma_results, adcChannelCount);
+			HAL_ADC_Start_DMA(&hadc, (uint32_t*) adc_dma_results, adcChannelCount);
 			adcTime = time;
 		}
 		if(adc_conv_complete){
@@ -1106,7 +1109,7 @@ static void MX_ADC_Init(void)
   hadc.Init.LowPowerAutoWait = ADC_AUTOWAIT_DISABLE;
   hadc.Init.LowPowerAutoPowerOff = ADC_AUTOPOWEROFF_DISABLE;
   hadc.Init.ChannelsBank = ADC_CHANNELS_BANK_A;
-  hadc.Init.ContinuousConvMode = DISABLE;
+  hadc.Init.ContinuousConvMode = ENABLE;
   hadc.Init.NbrOfConversion = 2;
   hadc.Init.DiscontinuousConvMode = DISABLE;
   hadc.Init.ExternalTrigConv = ADC_SOFTWARE_START;
@@ -1195,11 +1198,8 @@ static void MX_SPI1_Init(void)
   hspi1.Init.Mode = SPI_MODE_MASTER;
   hspi1.Init.Direction = SPI_DIRECTION_2LINES;
   hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
   hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
-  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
   hspi1.Init.CRCPolynomial = 10;
   if (HAL_SPI_Init(&hspi1) != HAL_OK)
@@ -1232,11 +1232,8 @@ static void MX_SPI2_Init(void)
   hspi2.Init.Mode = SPI_MODE_MASTER;
   hspi2.Init.Direction = SPI_DIRECTION_2LINES;
   hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
   hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
-  hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
   hspi2.Init.CRCPolynomial = 10;
   if (HAL_SPI_Init(&hspi2) != HAL_OK)
@@ -2114,21 +2111,6 @@ void SDDealWithScreen(){
 	}
 }
 
-#define SD_GET_FIRST	0
-#define SD_FETCH_NEXT	1
-#define	SD_CALC_NEXT	2
-#define SD_WAIT_NEXT	3
-#define SD_READ_ERR		4
-
-typedef struct noteEvent{
-	uint32_t timeOfEvent;
-	uint32_t bitsForPWM[2];
-	uint8_t track;
-	uint8_t noteNum;
-	uint16_t frequency, prescaler, autoReloadReg;
-	uint8_t velocity;
-}NoteEvent;
-
 uint8_t sdModeState = SD_GET_FIRST, track, noteNum;
 uint32_t tNext;
 NoteEvent nextEvent;
@@ -2142,12 +2124,12 @@ void SDMode(){
 	// Popcorn
 	// Thru the fire and flames
 	// Sail
-	// Peanuts linus and lucy
+	// Peanuts linus and lucy - FIXED
 	// Mission impossible
-	// Hall of the mountain king
-	// Ghost busters
-	// Entertainer
-	// Avast
+	// Hall of the mountain king - FIXED
+	// Ghost busters - FIXED
+	// Entertainer - FIXED
+	// Avast - FIXED
 
 	//South park
 	// nsmb underground: fails halfway thru
@@ -2239,6 +2221,12 @@ void SDMode(){
 
 			if(nextEvent.frequency > MAX_FREQUENCY) nextEvent.frequency = MAX_FREQUENCY;
 
+			// If the frequency is > ONTIME_NERFING_BOUND, divide by 2
+			if(nextEvent.frequency > ONTIME_NERFING_BOUND){
+				actualOnTimeSD[0] = actualOnTimeSD[0] >> 1;
+				actualOnTimeSD[1] = actualOnTimeSD[1] >> 2;
+			}
+
 			if(nextEvent.frequency == 1)        nextEvent.prescaler = 512 - 1;
 			else if(nextEvent.frequency <= 3)   nextEvent.prescaler = 256 - 1;
 			else if(nextEvent.frequency <= 7)   nextEvent.prescaler = 128 - 1;
@@ -2265,6 +2253,31 @@ void SDMode(){
 
 				// Find the coil that this note event is going on
 				doThisCoil = findTimForThisCombo(nextEvent.track, nextEvent.frequency, nextEvent.velocity);
+
+				if(doThisCoil == NULL){
+//					int x = 0;
+//					while(1){
+//						x++;
+//					}
+					clearDisplay(&lcd);
+					LCDPrintAtPos(&lcd, "Error assigning", 0, 0);
+					LCDPrintAtPos(&lcd, "notes to coils!", 0, 1);
+					LCDPrintAtPos(&lcd, "X( exiting...", 0, 2);
+					LCDPrintAtPos(&lcd, "Womp Womp", 0, 3);
+					turnOffAllCoils();
+					HAL_Delay(2000);
+					eventCounter = 0;
+					timeStarted = 0;
+					fresult = f_close(&fil);
+
+					clearDisplay(&lcd);
+					printed = false;
+
+					isPlaying = false;
+					sdModeState = SD_GET_FIRST;
+					state = MODE_SELECT;
+				}
+
 				uint32_t specific_bits;
 
 				// If COIL1 or COIL2, this is the big coil so use ontime[0]W
