@@ -18,9 +18,9 @@ DAUGHTER BOARD A - Bus voltage: 350V / 175V per
  - ADP2:  working
  - ADPST: working
  - All regulators installed and functioning
+ - Successfully ran a debug application
 
 Unpopulated:
- - R3, R4, R5
  - R1: 1M
  - R2: 16.2k
  
@@ -37,6 +37,7 @@ DAUGHTER BOARD B - Bus voltage: 400V max
  - ADP2:  working
  - ADPST: No short with 3v3 directly in. LED good 
  - All regulators installed and functioning
+ - Successfully ran a debug application
 
 R1: 1M
 R2: 16.2k
