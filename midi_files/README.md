@@ -16,6 +16,7 @@ Tesla quad plan:
 
 
 MIDI File requirements:
+ - Only on and off events - no program control change or tempo change
  - Maximum of 4 notes at any given time
  - Generally, 1 note per track
  - track 0 and 1 correspond to coil A, track 2 and 3 correspond to coil B
