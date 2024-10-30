@@ -115,9 +115,15 @@ void handle_msg(uint8_t *msg_buf, uint8_t uart_num){
 
 		if(uart_num == SOFT_UART_A){
 			temp_a = (uint16_t)(val & 0x0000FFFF);
+
+			static int msg_count_a = 0;
+			set_seg7_int(&coils[0].current, ++msg_count_a);
 		}
 		else if(uart_num == SOFT_UART_B){
 			temp_b = (uint16_t)(val & 0x0000FFFF);
+
+			static int msg_count_b = 0;
+			set_seg7_int(&coils[1].current, ++msg_count_b);
 		}
 
 		break;
@@ -240,6 +246,7 @@ int main(void)
 		  }
 
 		  // Update temperature
+		  // Use current as a counter for how many messages there are
 		  if(temp_a != coils[0].temp.value){
 			  set_seg7_int(&coils[0].temp, temp_a);
 		  }
