@@ -21,6 +21,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "max31855.h"
+//#include <stdio.h>
+#include <math.h>
 
 /* USER CODE END Includes */
 
@@ -104,16 +107,52 @@ int main(void)
   MX_CAN1_Init();
   /* USER CODE BEGIN 2 */
 
+  MAX31855_Init();	// Initialize MAX31855
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  /* USER CODE BEGIN 3 */
+
+	  // Read temperature from MAX31855
+	  float temperature = MAX31855_GetTemperature();
+	  uint32_t temp_int = (uint32_t)roundf(temperature);
+
+	  uint8_t tx_buf[SENSE_BOARD_MSG_SIZE];
+	  tx_buf[0] = MSG_TEMP_INT;
+	  tx_buf[1] = (uint8_t)(temp_int & 0x000000ff);
+	  tx_buf[2] = (uint8_t)((temp_int & 0x0000ff00) >> 8);
+	  tx_buf[3] = (uint8_t)((temp_int & 0x00ff0000) >> 16);
+	  tx_buf[4] = (uint8_t)((temp_int & 0xff000000) >> 24);
+
+	  HAL_UART_Transmit(&huart4, tx_buf, SENSE_BOARD_MSG_SIZE, HAL_MAX_DELAY);
+
+	  HAL_Delay(1000); // Delay 1 second between readings
+
+	  /* USER CODE END 3 */
+  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  }
+
+	  // Read temperature from MAX31855
+	  float temperature = MAX31855_GetTemperature();
+	  uint32_t temp_int = (uint32_t)roundf(temperature);
+
+	  uint8_t tx_buf[SENSE_BOARD_MSG_SIZE];
+	  tx_buf[0] = MSG_TEMP_INT;
+	  tx_buf[1] = (uint8_t)(temp_int & 0x000000ff);
+	  tx_buf[2] = (uint8_t)((temp_int & 0x0000ff00) >> 8);
+	  tx_buf[3] = (uint8_t)((temp_int & 0x00ff0000) >> 16);
+	  tx_buf[4] = (uint8_t)((temp_int & 0xff000000) >> 24);
+
+	  HAL_UART_Transmit(&huart4, tx_buf, SENSE_BOARD_MSG_SIZE, HAL_MAX_DELAY);
+
+	  HAL_Delay(1000); // Delay 1 second between readings
+
   /* USER CODE END 3 */
 }
 
@@ -329,7 +368,7 @@ static void MX_UART4_Init(void)
 
   /* USER CODE END UART4_Init 1 */
   huart4.Instance = UART4;
-  huart4.Init.BaudRate = 115200;
+  huart4.Init.BaudRate = 9600;
   huart4.Init.WordLength = UART_WORDLENGTH_8B;
   huart4.Init.StopBits = UART_STOPBITS_1;
   huart4.Init.Parity = UART_PARITY_NONE;
@@ -380,6 +419,27 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM2 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM2) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.

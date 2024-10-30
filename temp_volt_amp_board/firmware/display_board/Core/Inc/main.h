@@ -71,8 +71,31 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define RCK_Pin GPIO_PIN_4
 #define RCK_GPIO_Port GPIOA
+#define COILA_TX_Pin GPIO_PIN_6
+#define COILA_TX_GPIO_Port GPIOB
+#define COILB_TX_Pin GPIO_PIN_7
+#define COILB_TX_GPIO_Port GPIOB
+#define COILA_RX_Pin GPIO_PIN_8
+#define COILA_RX_GPIO_Port GPIOB
+#define COILB_RX_Pin GPIO_PIN_9
+#define COILB_RX_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
+
+// Soft UART numbers
+#define SOFT_UART_A	0
+#define SOFT_UART_B 1
+
+// Communication standard
+#define SENSE_BOARD_MSG_SIZE	5
+
+#define MSG_TEMP_INT      0
+#define MSG_TEMP_FLOAT    1
+#define MSG_VOLTAGE_INT   2
+#define MSG_VOLTAGE_FLOAT 3
+#define MSG_CURRENT_INT   4
+#define MSG_CURRENT_FLOAT 5
+
 
 #define boolean uint8_t
 #define true  1

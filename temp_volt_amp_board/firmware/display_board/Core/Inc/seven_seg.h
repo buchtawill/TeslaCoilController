@@ -88,6 +88,9 @@ void populate_tx_buf(uint8_t *tx_buf, CoilGroup *p_coils, uint8_t current_digit)
  */
 void set_seg7_int(seg7 *p_seg, uint16_t val);
 
+// Disable all segments
+void turn_off_display(seg7 *p_seg);
+
 /**
  * Update the value and digits array of p_seg to match val, but as a float
  */

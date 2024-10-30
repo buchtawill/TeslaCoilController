@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "seven_seg.h"
+#include "softuart.h"
 
 /* USER CODE END Includes */
 
@@ -44,17 +45,24 @@
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
 
-CAN_HandleTypeDef hcan1;
-
 SPI_HandleTypeDef hspi1;
 
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim6;
 
 /* USER CODE BEGIN PV */
 
 volatile uint16_t adc_dma_result;
 const int         adcChannelCount = 1;
 volatile boolean  adc_conv_complete = false; //set by callback
+
+uint16_t temp_a;
+uint16_t temp_b;
+
+// Create coil groups
+// Each coil group is a struct of 3 seven segment displays
+CoilGroup coils[2];
 
 /* USER CODE END PV */
 
@@ -63,9 +71,10 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
-static void MX_CAN1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_TIM3_Init(void);
+static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -86,10 +95,71 @@ HAL_StatusTypeDef display_loop(CoilGroup *p_coils){
 
 	HAL_GPIO_WritePin(RCK_GPIO_Port, RCK_Pin, GPIO_PIN_RESET);
 
-	HAL_SPI_Transmit(&hspi1, (uint8_t*)&tx_buf, (uint16_t)sizeof(tx_buf), 100);
+	HAL_StatusTypeDef stat = HAL_SPI_Transmit(&hspi1, (uint8_t*)&tx_buf, (uint16_t)sizeof(tx_buf), 100);
 
 	// Clock to output registers
 	HAL_GPIO_WritePin(RCK_GPIO_Port, RCK_Pin, GPIO_PIN_SET);
+
+	return stat;
+}
+
+void handle_msg(uint8_t *msg_buf, uint8_t uart_num){
+	switch(msg_buf[0]){
+	case MSG_TEMP_INT:{
+		uint32_t val = 0;
+
+		val |= msg_buf[1];
+		val |= msg_buf[2] << 8;
+		val |= msg_buf[3] << 16;
+		val |= msg_buf[4] << 24;
+
+		if(uart_num == SOFT_UART_A){
+			temp_a = (uint16_t)(val & 0x0000FFFF);
+		}
+		else if(uart_num == SOFT_UART_B){
+			temp_b = (uint16_t)(val & 0x0000FFFF);
+		}
+
+		break;
+	}
+	}
+}
+
+/**
+ * For SOFT_UART_A and SOFT_UART_B, check for data, and update coil temperature value
+ */
+void handle_software_uart(){
+
+	uint8_t buf[SENSE_BOARD_MSG_SIZE];
+
+	if(SoftUartRxAlavailable(SOFT_UART_A) >= SENSE_BOARD_MSG_SIZE){
+		SoftUartReadRxBuffer(SOFT_UART_A, buf, SENSE_BOARD_MSG_SIZE);
+		handle_msg(buf, SOFT_UART_A);
+	}
+
+	if(SoftUartRxAlavailable(SOFT_UART_B) >= SENSE_BOARD_MSG_SIZE){
+		SoftUartReadRxBuffer(SOFT_UART_B, buf, SENSE_BOARD_MSG_SIZE);
+		handle_msg(buf, SOFT_UART_B);
+	}
+}
+
+void count_led_test(CoilGroup* groups){
+	//Update display number
+	static uint32_t num_time = 0;
+	if(HAL_GetTick() - num_time > 10){
+		num_time = HAL_GetTick();
+
+		static uint16_t num = 0;
+		num++;
+   	    set_seg7_int(&groups[0].temp, num);
+		set_seg7_int(&groups[0].voltage, num);
+		set_seg7_int(&groups[0].current, num);
+		set_seg7_int(&groups[1].temp, num);
+		set_seg7_int(&groups[1].voltage, num);
+		set_seg7_int(&groups[1].current, num);
+
+ 	    if(num > 9999) num = 0;
+	}
 }
 
 /* USER CODE END 0 */
@@ -124,22 +194,31 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_ADC1_Init();
-  MX_CAN1_Init();
   MX_SPI1_Init();
   MX_TIM2_Init();
+  MX_TIM3_Init();
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
 
   // Start DMA
-  HAL_StatusTypeDef adc_start_stat = HAL_ADC_Start_DMA(&hadc1, (uint32_t*) &adc_dma_result, adcChannelCount);
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t*) &adc_dma_result, adcChannelCount);
   // HAL_ADC_Stop_DMA(&hadc1);
 
   // Start PWM on OE
   htim2.Instance->CCR1 = 500-1;
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
 
-  // Create coil groups
-  CoilGroup coils[2];
+  // Initialize soft uart and start timer
+  HAL_TIM_Base_Start_IT(&htim3);
+  HAL_TIM_Base_Start_IT(&htim6);
 
+  SoftUartState_E soft_state = SoftUartInit(0, COILA_TX_GPIO_Port, COILA_TX_Pin, \
+		                                       COILA_RX_GPIO_Port, COILA_RX_Pin);
+                  soft_state = SoftUartInit(1, COILB_TX_GPIO_Port, COILB_TX_Pin, \
+  		                                       COILB_RX_GPIO_Port, COILB_RX_Pin);
+
+  soft_state = SoftUartEnableRx(SOFT_UART_A);
+  soft_state = SoftUartEnableRx(SOFT_UART_B);
 
   /* USER CODE END 2 */
 
@@ -147,44 +226,51 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  // Do startup routine
+	  if(HAL_GetTick() < 2400) count_led_test(coils);
+	  else{
+		  static int first_entry = 1;
+		  if(first_entry == 1){
+			  first_entry = 0;
+			  turn_off_display(&coils[0].current);
+			  turn_off_display(&coils[0].voltage);
+			  turn_off_display(&coils[1].voltage);
+			  turn_off_display(&coils[1].current);
+			  //turn_off_display(&coils[1].temp);
+		  }
 
-	  display_loop(coils);
+		  // Update temperature
+		  if(temp_a != coils[0].temp.value){
+			  set_seg7_int(&coils[0].temp, temp_a);
+		  }
+		  if(temp_b != coils[1].temp.value){
+			  set_seg7_int(&coils[1].temp, temp_b);
+		  }
 
-	  HAL_Delay(1);
+		  // Check for new data
+		  handle_software_uart();
 
-	  //Update display number
-	  static uint32_t num_time = 0;
-	  if(HAL_GetTick() - num_time > 10){
-		  num_time = HAL_GetTick();
+		  // Check for new ADC value and set PWM
+		  static uint32_t adc_time = 0;
+		  if(adc_conv_complete){
+			  if(HAL_GetTick() - adc_time > 20){
+				  adc_time = HAL_GetTick();
+				  adc_conv_complete = false;
+				  htim2.Instance->CCR1 = adc_dma_result;
 
-		  static uint16_t num = 0;
-		  num++;
-		  set_seg7_int(&coils[0].temp, num);
-		  set_seg7_int(&coils[0].voltage, num);
-		  set_seg7_int(&coils[0].current, num);
-		  set_seg7_int(&coils[1].temp, num);
-		  set_seg7_int(&coils[1].voltage, num);
-		  set_seg7_int(&coils[1].current, num);
-
-		  if(num > 9999) num = 0;
-	  }
-
-	  // Update adc value and set PWM
-	  static uint32_t adc_time = 0;
-	  if(adc_conv_complete){
-		  if(HAL_GetTick() - adc_time > 20){
-			  adc_time = HAL_GetTick();
-			  adc_conv_complete = false;
-			  htim2.Instance->CCR1 = adc_dma_result;
-
-			  // Start ADC DMA again
-			  adc_start_stat = HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc_dma_result, adcChannelCount);
+				  // Start ADC DMA again
+				  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc_dma_result, adcChannelCount);
+			  }
 		  }
 	  }
+
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  // Call function to MUX displays
+//	  HAL_Delay(1);
+//	  display_loop(coils);
   }
   /* USER CODE END 3 */
 }
@@ -209,7 +295,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.Prediv1Source = RCC_PREDIV1_SOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL6;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
   RCC_OscInitStruct.PLL2.PLL2State = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -225,12 +311,12 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
   {
     Error_Handler();
   }
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
-  PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV4;
+  PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV6;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
@@ -285,43 +371,6 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 2 */
 
   /* USER CODE END ADC1_Init 2 */
-
-}
-
-/**
-  * @brief CAN1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_CAN1_Init(void)
-{
-
-  /* USER CODE BEGIN CAN1_Init 0 */
-
-  /* USER CODE END CAN1_Init 0 */
-
-  /* USER CODE BEGIN CAN1_Init 1 */
-
-  /* USER CODE END CAN1_Init 1 */
-  hcan1.Instance = CAN1;
-  hcan1.Init.Prescaler = 16;
-  hcan1.Init.Mode = CAN_MODE_NORMAL;
-  hcan1.Init.SyncJumpWidth = CAN_SJW_1TQ;
-  hcan1.Init.TimeSeg1 = CAN_BS1_1TQ;
-  hcan1.Init.TimeSeg2 = CAN_BS2_1TQ;
-  hcan1.Init.TimeTriggeredMode = DISABLE;
-  hcan1.Init.AutoBusOff = DISABLE;
-  hcan1.Init.AutoWakeUp = DISABLE;
-  hcan1.Init.AutoRetransmission = DISABLE;
-  hcan1.Init.ReceiveFifoLocked = DISABLE;
-  hcan1.Init.TransmitFifoPriority = DISABLE;
-  if (HAL_CAN_Init(&hcan1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN CAN1_Init 2 */
-
-  /* USER CODE END CAN1_Init 2 */
 
 }
 
@@ -423,6 +472,89 @@ static void MX_TIM2_Init(void)
 }
 
 /**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 74;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 19;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
+
+}
+
+/**
+  * @brief TIM6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM6_Init(void)
+{
+
+  /* USER CODE BEGIN TIM6_Init 0 */
+
+  /* USER CODE END TIM6_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM6_Init 1 */
+
+  /* USER CODE END TIM6_Init 1 */
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 72-1;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 1200-1;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM6_Init 2 */
+
+  /* USER CODE END TIM6_Init 2 */
+
+}
+
+/**
   * Enable DMA controller clock
   */
 static void MX_DMA_Init(void)
@@ -457,6 +589,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(RCK_GPIO_Port, RCK_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, COILA_TX_Pin|COILB_TX_Pin, GPIO_PIN_RESET);
+
   /*Configure GPIO pin : RCK_Pin */
   GPIO_InitStruct.Pin = RCK_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -464,11 +599,43 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(RCK_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : COILA_TX_Pin COILB_TX_Pin */
+  GPIO_InitStruct.Pin = COILA_TX_Pin|COILB_TX_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : COILA_RX_Pin */
+  GPIO_InitStruct.Pin = COILA_RX_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(COILA_RX_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : COILB_RX_Pin */
+  GPIO_InitStruct.Pin = COILB_RX_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(COILB_RX_GPIO_Port, &GPIO_InitStruct);
+
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+	if(htim->Instance==TIM3)
+	{
+		SoftUartHandler();
+	}
+	else if(htim->Instance == TIM6){
+		display_loop(coils);
+	}
+}
+
+
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	adc_conv_complete = true;
 }
