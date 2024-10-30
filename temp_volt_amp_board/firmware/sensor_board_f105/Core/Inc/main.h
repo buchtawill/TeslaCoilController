@@ -60,6 +60,16 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN Private defines */
 
+// Communication standard
+#define SENSE_BOARD_MSG_SIZE	5
+
+#define MSG_TEMP_INT      0
+#define MSG_TEMP_FLOAT    1
+#define MSG_VOLTAGE_INT   2
+#define MSG_VOLTAGE_FLOAT 3
+#define MSG_CURRENT_INT   4
+#define MSG_CURRENT_FLOAT 5
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

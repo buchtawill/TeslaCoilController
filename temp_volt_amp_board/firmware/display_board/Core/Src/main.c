@@ -49,6 +49,7 @@ SPI_HandleTypeDef hspi1;
 
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim6;
 
 /* USER CODE BEGIN PV */
 
@@ -58,6 +59,10 @@ volatile boolean  adc_conv_complete = false; //set by callback
 
 uint16_t temp_a;
 uint16_t temp_b;
+
+// Create coil groups
+// Each coil group is a struct of 3 seven segment displays
+CoilGroup coils[2];
 
 /* USER CODE END PV */
 
@@ -69,6 +74,7 @@ static void MX_ADC1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -102,10 +108,10 @@ void handle_msg(uint8_t *msg_buf, uint8_t uart_num){
 	case MSG_TEMP_INT:{
 		uint32_t val = 0;
 
-		val |= msg_buf[0];
-		val |= msg_buf[1] << 8;
-		val |= msg_buf[2] << 16;
-		val |= msg_buf[3] << 24;
+		val |= msg_buf[1];
+		val |= msg_buf[2] << 8;
+		val |= msg_buf[3] << 16;
+		val |= msg_buf[4] << 24;
 
 		if(uart_num == SOFT_UART_A){
 			temp_a = (uint16_t)(val & 0x0000FFFF);
@@ -191,6 +197,7 @@ int main(void)
   MX_SPI1_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
 
   // Start DMA
@@ -202,18 +209,16 @@ int main(void)
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
 
   // Initialize soft uart and start timer
-  HAL_TIM_Base_Start(&htim3);
+  HAL_TIM_Base_Start_IT(&htim3);
+  HAL_TIM_Base_Start_IT(&htim6);
+
   SoftUartState_E soft_state = SoftUartInit(0, COILA_TX_GPIO_Port, COILA_TX_Pin, \
 		                                       COILA_RX_GPIO_Port, COILA_RX_Pin);
-                  soft_state = SoftUartInit(0, COILB_TX_GPIO_Port, COILB_TX_Pin, \
+                  soft_state = SoftUartInit(1, COILB_TX_GPIO_Port, COILB_TX_Pin, \
   		                                       COILB_RX_GPIO_Port, COILB_RX_Pin);
 
   soft_state = SoftUartEnableRx(SOFT_UART_A);
   soft_state = SoftUartEnableRx(SOFT_UART_B);
-
-  // Create coil groups
-  // Each coil group is a struct of 3 seven segment displays
-  CoilGroup coils[2];
 
   /* USER CODE END 2 */
 
@@ -221,38 +226,51 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-//	  count_led_test(&coils);
+	  // Do startup routine
+	  if(HAL_GetTick() < 2400) count_led_test(coils);
+	  else{
+		  static int first_entry = 1;
+		  if(first_entry == 1){
+			  first_entry = 0;
+			  turn_off_display(&coils[0].current);
+			  turn_off_display(&coils[0].voltage);
+			  turn_off_display(&coils[1].voltage);
+			  turn_off_display(&coils[1].current);
+			  //turn_off_display(&coils[1].temp);
+		  }
 
-	  // Update temperature
-	  if(temp_a != coils[0].temp.value){
-		  set_seg7_int(&coils[0].temp, temp_a);
-	  }
-	  if(temp_b != coils[1].temp.value){
-		  set_seg7_int(&coils[1].temp, temp_b);
-	  }
+		  // Update temperature
+		  if(temp_a != coils[0].temp.value){
+			  set_seg7_int(&coils[0].temp, temp_a);
+		  }
+		  if(temp_b != coils[1].temp.value){
+			  set_seg7_int(&coils[1].temp, temp_b);
+		  }
 
-	  // Call function to MUX displays
-	  display_loop(coils);
+		  // Check for new data
+		  handle_software_uart();
 
-	  // Check for new data
-	  handle_software_uart();
+		  // Check for new ADC value and set PWM
+		  static uint32_t adc_time = 0;
+		  if(adc_conv_complete){
+			  if(HAL_GetTick() - adc_time > 20){
+				  adc_time = HAL_GetTick();
+				  adc_conv_complete = false;
+				  htim2.Instance->CCR1 = adc_dma_result;
 
-	  // Check for new ADC value and set PWM
-	  static uint32_t adc_time = 0;
-	  if(adc_conv_complete){
-		  if(HAL_GetTick() - adc_time > 20){
-			  adc_time = HAL_GetTick();
-			  adc_conv_complete = false;
-			  htim2.Instance->CCR1 = adc_dma_result;
-
-			  // Start ADC DMA again
-			  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc_dma_result, adcChannelCount);
+				  // Start ADC DMA again
+				  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc_dma_result, adcChannelCount);
+			  }
 		  }
 	  }
+
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  // Call function to MUX displays
+//	  HAL_Delay(1);
+//	  display_loop(coils);
   }
   /* USER CODE END 3 */
 }
@@ -499,6 +517,44 @@ static void MX_TIM3_Init(void)
 }
 
 /**
+  * @brief TIM6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM6_Init(void)
+{
+
+  /* USER CODE BEGIN TIM6_Init 0 */
+
+  /* USER CODE END TIM6_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM6_Init 1 */
+
+  /* USER CODE END TIM6_Init 1 */
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 72-1;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 1200-1;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM6_Init 2 */
+
+  /* USER CODE END TIM6_Init 2 */
+
+}
+
+/**
   * Enable DMA controller clock
   */
 static void MX_DMA_Init(void)
@@ -573,6 +629,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	if(htim->Instance==TIM3)
 	{
 		SoftUartHandler();
+	}
+	else if(htim->Instance == TIM6){
+		display_loop(coils);
 	}
 }
 

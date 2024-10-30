@@ -49,6 +49,19 @@ void set_seg7_int(seg7 *p_seg, uint16_t val){
 	p_seg->digits[1] = (val / 100) % 10;
 	p_seg->digits[2] = (val / 10)  % 10;
 	p_seg->digits[3] = (val % 10);
+
+	// Remove leading zeros
+	for (int i = 0; i < 4; i++){
+		if(p_seg->digits[i] != 0) return;
+		else p_seg->digits[i] = 255; // disable
+	}
+}
+
+void turn_off_display(seg7 *p_seg){
+	p_seg->digits[0] = 16;
+	p_seg->digits[1] = 16;
+	p_seg->digits[2] = 16;
+	p_seg->digits[3] = 16;
 }
 
 void populate_tx_buf(uint8_t *tx_buf, CoilGroup *p_coils, uint8_t current_digit){

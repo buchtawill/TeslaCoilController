@@ -22,7 +22,9 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "max31855.h"
-#include <stdio.h>
+//#include <stdio.h>
+#include <math.h>
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -117,14 +119,39 @@ int main(void)
 
 	  // Read temperature from MAX31855
 	  float temperature = MAX31855_GetTemperature();
+	  uint32_t temp_int = (uint32_t)roundf(temperature);
 
-	  HAL_Delay(500); // Delay 1 second between readings
+	  uint8_t tx_buf[SENSE_BOARD_MSG_SIZE];
+	  tx_buf[0] = MSG_TEMP_INT;
+	  tx_buf[1] = (uint8_t)(temp_int & 0x000000ff);
+	  tx_buf[2] = (uint8_t)((temp_int & 0x0000ff00) >> 8);
+	  tx_buf[3] = (uint8_t)((temp_int & 0x00ff0000) >> 16);
+	  tx_buf[4] = (uint8_t)((temp_int & 0xff000000) >> 24);
 
+	  HAL_UART_Transmit(&huart4, tx_buf, SENSE_BOARD_MSG_SIZE, HAL_MAX_DELAY);
+
+	  HAL_Delay(1000); // Delay 1 second between readings
 
 	  /* USER CODE END 3 */
   }
-  /* USER CODE END WHILE */
+    /* USER CODE END WHILE */
 
+    /* USER CODE BEGIN 3 */
+
+	  // Read temperature from MAX31855
+	  float temperature = MAX31855_GetTemperature();
+	  uint32_t temp_int = (uint32_t)roundf(temperature);
+
+	  HAL_Delay(1000); // Delay 1 second between readings
+
+	  uint8_t tx_buf[SENSE_BOARD_MSG_SIZE];
+	  tx_buf[0] = MSG_TEMP_INT;
+	  tx_buf[1] = (uint8_t)(temp_int & 0x000000ff);
+	  tx_buf[2] = (uint8_t)((temp_int & 0x0000ff00) >> 8);
+	  tx_buf[3] = (uint8_t)((temp_int & 0x00ff0000) >> 16);
+	  tx_buf[4] = (uint8_t)((temp_int & 0xff000000) >> 24);
+
+  /* USER CODE END 3 */
 }
 
 /**
@@ -307,8 +334,8 @@ static void MX_SPI3_Init(void)
   hspi3.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi3.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi3.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi3.Init.NSS = SPI_NSS_SOFT;
-  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+  hspi3.Init.NSS = SPI_NSS_HARD_OUTPUT;
+  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
   hspi3.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi3.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi3.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -339,7 +366,7 @@ static void MX_UART4_Init(void)
 
   /* USER CODE END UART4_Init 1 */
   huart4.Instance = UART4;
-  huart4.Init.BaudRate = 115200;
+  huart4.Init.BaudRate = 9600;
   huart4.Init.WordLength = UART_WORDLENGTH_8B;
   huart4.Init.StopBits = UART_STOPBITS_1;
   huart4.Init.Parity = UART_PARITY_NONE;
@@ -374,10 +401,10 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOC_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8|GPIO_PIN_10|GPIO_PIN_15, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PA8 PA10 PA15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_10|GPIO_PIN_15;
+  /*Configure GPIO pin : PA10 */
+  GPIO_InitStruct.Pin = GPIO_PIN_10;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
