@@ -44,6 +44,7 @@ R2: 16.2k
 
 
 
-
+Temp board B has a weird bug where it can only initialize after being powered on - resetting 
+will cause execution to hang on uwTickPrio at 0x20000004
 
 

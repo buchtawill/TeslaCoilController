@@ -142,14 +142,16 @@ int main(void)
 	  float temperature = MAX31855_GetTemperature();
 	  uint32_t temp_int = (uint32_t)roundf(temperature);
 
-	  HAL_Delay(1000); // Delay 1 second between readings
-
 	  uint8_t tx_buf[SENSE_BOARD_MSG_SIZE];
 	  tx_buf[0] = MSG_TEMP_INT;
 	  tx_buf[1] = (uint8_t)(temp_int & 0x000000ff);
 	  tx_buf[2] = (uint8_t)((temp_int & 0x0000ff00) >> 8);
 	  tx_buf[3] = (uint8_t)((temp_int & 0x00ff0000) >> 16);
 	  tx_buf[4] = (uint8_t)((temp_int & 0xff000000) >> 24);
+
+	  HAL_UART_Transmit(&huart4, tx_buf, SENSE_BOARD_MSG_SIZE, HAL_MAX_DELAY);
+
+	  HAL_Delay(1000); // Delay 1 second between readings
 
   /* USER CODE END 3 */
 }
@@ -417,6 +419,27 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM2 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM2) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.
