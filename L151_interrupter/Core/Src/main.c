@@ -2224,7 +2224,7 @@ void SDMode(){
 			// If the frequency is > ONTIME_NERFING_BOUND, divide by 2
 			if(nextEvent.frequency > ONTIME_NERFING_BOUND){
 				actualOnTimeSD[0] = actualOnTimeSD[0] >> 1;
-				actualOnTimeSD[1] = actualOnTimeSD[1] >> 2;
+				actualOnTimeSD[1] = actualOnTimeSD[1] >> 1;
 			}
 
 			if(nextEvent.frequency == 1)        nextEvent.prescaler = 512 - 1;
