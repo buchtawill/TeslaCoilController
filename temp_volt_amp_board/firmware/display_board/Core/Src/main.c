@@ -104,7 +104,7 @@ HAL_StatusTypeDef display_loop(CoilGroup *p_coils){
 }
 
 void handle_msg(uint8_t *msg_buf, uint8_t uart_num){
-	switch(msg_buf[0]){
+	switch(msg_buf[0] & 0b00001111){
 	case MSG_TEMP_INT:{
 		uint32_t val = 0;
 
@@ -113,13 +113,17 @@ void handle_msg(uint8_t *msg_buf, uint8_t uart_num){
 		val |= msg_buf[3] << 16;
 		val |= msg_buf[4] << 24;
 
-		if(uart_num == SOFT_UART_A){
+		uint8_t coil_num = msg_buf[0] & 0xF0;
+
+//		if(uart_num == SOFT_UART_A){
+		if(coil_num == COIL_A){
 			temp_a = (uint16_t)(val & 0x0000FFFF);
 
 			static int msg_count_a = 0;
 			set_seg7_int(&coils[0].current, ++msg_count_a);
 		}
-		else if(uart_num == SOFT_UART_B){
+		//else if(uart_num == SOFT_UART_B){
+		else if(coil_num == COIL_B){
 			temp_b = (uint16_t)(val & 0x0000FFFF);
 
 			static int msg_count_b = 0;
@@ -138,12 +142,15 @@ void handle_software_uart(){
 
 	uint8_t buf[SENSE_BOARD_MSG_SIZE];
 
-	if(SoftUartRxAlavailable(SOFT_UART_A) >= SENSE_BOARD_MSG_SIZE){
+	uint8_t n_rx_a = SoftUartRxAlavailable(SOFT_UART_A);
+	uint8_t n_rx_b = SoftUartRxAlavailable(SOFT_UART_B);
+
+	if(n_rx_a >= SENSE_BOARD_MSG_SIZE){
 		SoftUartReadRxBuffer(SOFT_UART_A, buf, SENSE_BOARD_MSG_SIZE);
 		handle_msg(buf, SOFT_UART_A);
 	}
 
-	if(SoftUartRxAlavailable(SOFT_UART_B) >= SENSE_BOARD_MSG_SIZE){
+	if(n_rx_b >= SENSE_BOARD_MSG_SIZE){
 		SoftUartReadRxBuffer(SOFT_UART_B, buf, SENSE_BOARD_MSG_SIZE);
 		handle_msg(buf, SOFT_UART_B);
 	}
@@ -243,6 +250,8 @@ int main(void)
 			  turn_off_display(&coils[1].voltage);
 			  turn_off_display(&coils[1].current);
 			  //turn_off_display(&coils[1].temp);
+			  set_seg7_int(&coils[0].temp, 1);
+			  set_seg7_int(&coils[1].temp, 1);
 		  }
 
 		  // Update temperature

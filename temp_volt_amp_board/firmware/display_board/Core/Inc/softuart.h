@@ -12,7 +12,7 @@
 #define 	Number_Of_SoftUarts 	2 	// Max 8
 
 #define 	SoftUartTxBufferSize	32
-#define 	SoftUartRxBufferSize	256
+#define 	SoftUartRxBufferSize	32
 
 #define 	SoftUart_DATA_LEN   	8 	// Max 8 Bit
 #define 	SoftUart_PARITY     	0   // 0=None 1=odd 2=even

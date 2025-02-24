@@ -73,7 +73,7 @@ void populate_tx_buf(uint8_t *tx_buf, CoilGroup *p_coils, uint8_t current_digit)
 	tx_buf[3] = num_to_seg(p_coils[1].current.digits[current_digit]);
 	tx_buf[4] = num_to_seg(p_coils[0].current.digits[current_digit]);
 	tx_buf[5] = num_to_seg(p_coils[0].voltage.digits[current_digit]);
-	tx_buf[6] = num_to_seg(p_coils[1].voltage.digits[current_digit]);
+	tx_buf[6] = num_to_seg(p_coils[0].temp.digits[current_digit]);
 }
 
 

@@ -122,7 +122,7 @@ int main(void)
 	  uint32_t temp_int = (uint32_t)roundf(temperature);
 
 	  uint8_t tx_buf[SENSE_BOARD_MSG_SIZE];
-	  tx_buf[0] = MSG_TEMP_INT;
+	  tx_buf[0] = MSG_TEMP_INT | COIL_A;
 	  tx_buf[1] = (uint8_t)(temp_int & 0x000000ff);
 	  tx_buf[2] = (uint8_t)((temp_int & 0x0000ff00) >> 8);
 	  tx_buf[3] = (uint8_t)((temp_int & 0x00ff0000) >> 16);
