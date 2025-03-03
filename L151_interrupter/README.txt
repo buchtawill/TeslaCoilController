@@ -18,8 +18,5 @@ Important notes:
 
     Need to enable "#define _FS_RPATH 1" in L151_interrupter\FATFS\Target\ffconf.h to enable "chdir()" function
 
-    Currently debugging an issue with findTimForThisCombo() returning nothing.
-    eventCounter = 2
-    nextevent.track = 2
-    nextEvent.frequency = 415
-    nextEvent.velocity = 100
+    Setting A sets ONLY A 
+    But setting B sets a and B
