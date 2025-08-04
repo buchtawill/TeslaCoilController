@@ -19,11 +19,10 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "fatfs.h"
-#include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "usbd_cdc_if.h"
+#include "I2C_LCD.h"
 
 /* USER CODE END Includes */
 
@@ -70,6 +69,7 @@ FIL       file;
 FRESULT   fresult;
 FILINFO   fno;
 DIR       dir;
+LCD lcd;
 
 /* USER CODE END PV */
 
@@ -141,7 +141,6 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USART6_UART_Init();
   MX_FATFS_Init();
-  MX_USB_DEVICE_Init();
   MX_TIM11_Init();
   MX_SPI1_Init();
   MX_TIM9_Init();
@@ -153,7 +152,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 
     /**
-     * What we need to worry about
+     * What we need to worry about for interrupter FW version
      * 1.  USB messages from upstream source
      * 2.  Current player mode (Choose mode, SD mode, Fixed, Burst)
      * 3.  LCD status based on mode (Same as interrupter REV1) --> I2C2
@@ -176,15 +175,40 @@ int main(void)
      *    ROT_CLK, ROT_SW, OH_SHIT_BTN, SPKR_EN_BTN
      */
 
+  /**
+   * What we need to worry about for the display case
+   * Main loop: Boot into MODE_SELECT screen. Either MODE_KEYBOARD or MODE_SD. As soon as a mode is selected,
+   *            flip the relay and turn the coil on.
+   * 	If MODE_LIVE, Display instructions and a timer. Timer starts counting when first note is played.
+   * 	If SD mode, choose a song, play it.
+   *
+   * 	After a song is done or live mode timer is done, go back to mode-select screen, display a DEAD_TIME_MIN minute timer and
+   * 	a funny message
+   *
+   * 	If either of the above modes are chosen but nothing is subsequently done after 5 minutes, turn the relay off, go back to
+   * 	MODE_SELECT, but with no DEAD_TIME_MIN minute wait
+   *
+   */
+
     //Initialize everything:
     // Start the timers
     // Initialize the LCD
     // Start the ADC (DMA too?)
     // Read the contents of the SD card and store in an array
+	initLCD(&lcd, &hi2c2, MAX_ROW_LCD, 20, 0x27);
+	setCursor(&lcd, 0, 0);
+	(void)LCDCursorOffBlinkOff(&lcd);
+	LCDPrintAtPos(&lcd, "Select mode:", 0, 0);
+	LCDPrintAtPos(&lcd, ">", 1, 1);
+	LCDPrintAtPos(&lcd, "1.SD Card", 2, 1);
+	LCDPrintAtPos(&lcd, "2.Burst", 2, 2);
+	LCDPrintAtPos(&lcd, "3.Fixed", 2, 3);
 
 
     while (1){
     /* USER CODE END WHILE */
+    	HAL_GPIO_TogglePin(LED_HEARTBEAT_GPIO_Port, LED_HEARTBEAT_Pin);
+    	HAL_Delay(1000);
 
     /* USER CODE BEGIN 3 */
     }
@@ -938,7 +962,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOC, OLED_RST_Pin|OLED_DC_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, SPEAKER_EN_Pin|LED_HEARTBEAT_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, SPEAKER_EN_Pin|LED_HEARTBEAT_Pin|RELAY_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : ROT_CLK_Pin ROT_SW_Pin OH_SHIT_BTN_Pin */
   GPIO_InitStruct.Pin = ROT_CLK_Pin|ROT_SW_Pin|OH_SHIT_BTN_Pin;
@@ -972,8 +996,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(SPKR_EN_BTN_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : SPEAKER_EN_Pin LED_HEARTBEAT_Pin */
-  GPIO_InitStruct.Pin = SPEAKER_EN_Pin|LED_HEARTBEAT_Pin;
+  /*Configure GPIO pins : SPEAKER_EN_Pin LED_HEARTBEAT_Pin RELAY_Pin */
+  GPIO_InitStruct.Pin = SPEAKER_EN_Pin|LED_HEARTBEAT_Pin|RELAY_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

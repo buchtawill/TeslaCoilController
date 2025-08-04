@@ -1,0 +1,10 @@
+Drivers
+Debug
+Release
+FATFS
+Middlewares
+USB_DEVICE
+*.o
+*.bin
+*.elf
+*.hex

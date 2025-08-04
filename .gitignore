@@ -3,3 +3,4 @@ L151_interrupter/Release/*
 */.settings/*
 .vscode\TeslaCoilController.code-workspace
 *.will
+*.stl

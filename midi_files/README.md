@@ -5,19 +5,43 @@ for example, "Text" or "Program change"
 
 Tesla quad plan:
 
- - xImperial March
- - xSpooky scary skeletons
- - xMii Channel - has 2nd part
+ - Imperial March
+ - Spooky scary skeletons
+ - Mii Channel - has 2nd part
  - Koopa Kid castle
- - xtmbg famous polka
+ - tmbg famous polka
  - Hall of the mountain king
- - xStar wars
+ - Star wars
  - Cantina theme
  - Daggerfall theme 008
  - ~Beach theme mario 
 
  - maybe virus
  - Minion march
+
+
+Show order:
+    Dual: Star wars opening
+    Dual: Zombie nation
+    Dual: Cantina
+    Single Big: Yakety Sax
+    Single Small: Famous Polka
+    2 min pause
+    Dual: Smash bros
+    Dual: Mario Underground
+    Dual: Mii channel (2nd part)
+    3 min pause
+    Dual: Spooky Scary
+    1 min pause
+    Dual: Imperial march
+    1 min pause
+    Single Big: All star
+    Single Small: Tetris
+    Single big: Entertainer
+    3-4 min pause
+    Dual Dueling Banjos
+    2 min pause
+    Dual Sweet home alabama, whole thing
 
 
 MIDI File requirements:

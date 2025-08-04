@@ -85,6 +85,8 @@ void Error_Handler(void);
 #define LED_HEARTBEAT_GPIO_Port GPIOB
 #define SDIO_DETECT_Pin GPIO_PIN_14
 #define SDIO_DETECT_GPIO_Port GPIOB
+#define RELAY_Pin GPIO_PIN_15
+#define RELAY_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
@@ -113,6 +115,11 @@ void Error_Handler(void);
 #define HUNDRED_DIGIT             0
 #define TEN_DIGIT                 1
 #define ONES_DIGIT                2
+
+#define MAX_ROW_LCD  		4
+#define MAX_CHAR_ON_SCREEN 	19 // Maximum number of characters the display can show
+#define MAX_NUM_FILES    	32
+#define MAX_FILENAME_LENGTH 64
 
 /* USER CODE END Private defines */
 

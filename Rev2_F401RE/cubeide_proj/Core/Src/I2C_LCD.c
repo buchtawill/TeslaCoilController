@@ -14,8 +14,6 @@
 #include <string.h> //for strlen
 
 
-//HAL_I2C_Master_Transmit(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint8_t *pData, uint16_t Size, uint32_t Timeout)
-//HAL_I2C_Master_Receive
 
 /*
  * Initializes LCD struct, resets the LCD, and sets it to 4 bit mode
@@ -111,6 +109,7 @@ HAL_StatusTypeDef LCDPrintAtPos(LCD *dev, char *pString, uint8_t col, uint8_t ro
 	HAL_StatusTypeDef stat = setCursor(dev, col, row);
 	return stat | LCDPrint(dev, pString);
 }
+
 /**
  * @brief	Writes a byte to a given DDRAM address
  * @param	byte - address of character in CGROM (see table in datasheet)
