@@ -7,6 +7,7 @@
  *  *** FOR ROM CODE A00 ***
  *
  *	*** SCREEN SIZES OTHER THAN 20 BY 4 NOT IMPLEMENTED ***
+ *	https://cdn.sparkfun.com/assets/9/5/f/7/b/HD44780.pdf
  */
 
 #ifndef INC_I2C_LCD_H_
@@ -25,6 +26,9 @@
 #define RW	1
 #define EN	2
 #define BT	3
+
+#define RS_DATA (1 << RS)
+#define RS_INSTR (0)
 
 #define MAX_ADDR_1602
 #define MAX_ADDR_2004 80
@@ -53,6 +57,10 @@
 #define DISP_ON_OFF_BIT			(1 << 3) //db2: display on/off. db1: cursor on/off. db0: blink on/off
 #define CURSOR_DISP_SHIFT_BIT	(1 << 4) //db3: screen/cursor, db2: Right / left
 #define SET_DDRAM_ADDR_BIT		(1 << 7) //db6-0: address value
+#define SET_CGRAM_ADDR_BIT		(1 << 6) //db6-0: address value
+
+#define CGRAM_ADDR_MASK         0b00111111 //
+#define DDRAM_ADDR_MASK         0b01111111 //
 
 
 typedef struct {
@@ -216,6 +224,9 @@ HAL_StatusTypeDef write4BitsToDataReg(LCD *dev, uint8_t bits);
  */
 HAL_StatusTypeDef write4BitsToInstructionReg(LCD *dev, uint8_t bits);
 
-
+HAL_StatusTypeDef read4Bits(LCD *dev, uint8_t rs, uint8_t *outNibble);
+HAL_StatusTypeDef readByteFromInstructionReg(LCD *dev, uint8_t *outByte);
+HAL_StatusTypeDef readByteFromDataReg(LCD *dev, uint8_t *outByte);
+HAL_StatusTypeDef setCGRAMAddress(LCD *dev, uint8_t addr);
 
 #endif /* INC_I2C_LCD_H_ */

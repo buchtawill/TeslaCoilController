@@ -23,6 +23,9 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "I2C_LCD.h"
+#include "midi_keyboard_handler.h"
+#include "stdio.h"
+#include "timers.h"
 
 /* USER CODE END Includes */
 
@@ -69,7 +72,17 @@ FIL       file;
 FRESULT   fresult;
 FILINFO   fno;
 DIR       dir;
-LCD lcd;
+LCD       lcd;
+
+uint16_t noteFreq[72] = {
+		//c,      c#,     d,      d#,     e,      f,      f#,     G,      g#,     a,      a#,     b
+		 33,      35,     37,     39,     41,     44,     46,     49,     52,     55,     58,     61,  // 1's
+		 65,      69,     73,     78,     82,     87,     93,     98,     104,    110,    117,    123, // 2's
+		 131,     139,    147,    156,    165,    175,    185,    196,    208,    220,    233,    247, // 3's
+		 262,     277,    294,    311,    330,    349,    370,    392,    415,    440,    466,    494, // 4's
+		 523,     554,    587,    622,    659,    698,    740,    784,    831,    880,    932,    988, // 5's
+		 1047,    1109,   1175,  1245,   1319,   1397,   1480,   1568,   1661,   1760,   1865,   1976  // 6's
+};
 
 /* USER CODE END PV */
 
@@ -198,17 +211,57 @@ int main(void)
 	initLCD(&lcd, &hi2c2, MAX_ROW_LCD, 20, 0x27);
 	setCursor(&lcd, 0, 0);
 	(void)LCDCursorOffBlinkOff(&lcd);
-	LCDPrintAtPos(&lcd, "Select mode:", 0, 0);
+	LCDPrintAtPos(&lcd, "Hello world", 0, 0);
 	LCDPrintAtPos(&lcd, ">", 1, 1);
 	LCDPrintAtPos(&lcd, "1.SD Card", 2, 1);
 	LCDPrintAtPos(&lcd, "2.Burst", 2, 2);
 	LCDPrintAtPos(&lcd, "3.Fixed", 2, 3);
 
+  // LED1 is TIM1 Ch1 and TIM2 Ch1
+
+  midi_keyboard_init(&huart1);
+  midi_start_rx_it();
+
+	HAL_GPIO_WritePin(SPKR_EN_GPIO_Port, SPKR_EN_Pin, GPIO_PIN_SET);
+
+	// Need to figure out a better way to prevent these glitches from happening
+	htim1.Instance->CCR1 = 0;
+	htim2.Instance->CCR2 = 0;
+	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+
+	uint8_t max_pending = 0;
 
     while (1){
+
+    	uint8_t num_midi_msg = num_pending_midi_msg();
+    	if(num_midi_msg > max_pending) max_pending = num_midi_msg;
+
+    	if(num_midi_msg > 0){
+    		MidiMsg_t msg;
+    		deq_next_midi_msg(&msg);
+    		// clearDisplay(&lcd);
+    		// LCDPrintAtPos(&lcd, "Status Byte:", 0, 0);
+    		// char cbuf[18];
+    		// cbuf[17] = '\0';
+    		// snprintf(cbuf, 17, "0x%X", msg.status);
+    		// LCDPrintAtPos(&lcd, cbuf, 1, 1);
+
+			if((msg.status & 0xF0) == MIDI_MSG_NOTE_ON){
+			  // Keyboard defaults to leftmost key being note 48 (C3)
+			  // Our C3 is note 24
+			  uint8_t note_num = msg.db1;
+			  uint16_t freq = noteFreq[note_num-24];
+			  setTimerFrequencyPulseWidth(&htim1, freq, 75, TIM_CHANNEL_1);
+			}
+			else if((msg.status & 0xF0) == MIDI_MSG_NOTE_OFF){
+			  setTimerFrequencyPulseWidth(&htim1, 0, 0, TIM_CHANNEL_1);
+			}
+    	}
+
+    	// GPIO_PinState val = HAL_GPIO_ReadPin(SPKR_EN_BTN_GPIO_Port, SPKR_EN_BTN_Pin);
+//    	HAL_GPIO_TogglePin(LED_HEARTBEAT_GPIO_Port, LED_HEARTBEAT_Pin);
+//	    HAL_Delay(100);
     /* USER CODE END WHILE */
-    	HAL_GPIO_TogglePin(LED_HEARTBEAT_GPIO_Port, LED_HEARTBEAT_Pin);
-    	HAL_Delay(1000);
 
     /* USER CODE BEGIN 3 */
     }
@@ -237,9 +290,9 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 8;
-  RCC_OscInitStruct.PLL.PLLN = 168;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
-  RCC_OscInitStruct.PLL.PLLQ = 7;
+  RCC_OscInitStruct.PLL.PLLN = 64;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = 3;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -281,7 +334,7 @@ static void MX_ADC1_Init(void)
   /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
   */
   hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.ScanConvMode = DISABLE;
   hadc1.Init.ContinuousConvMode = DISABLE;
@@ -433,12 +486,12 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 0;
+  htim1.Init.Prescaler = 64-1;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 65535;
+  htim1.Init.Period = 1000-1;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
-  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
   {
     Error_Handler();
@@ -459,7 +512,7 @@ static void MX_TIM1_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
+  sConfigOC.Pulse = 100-1;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
@@ -854,7 +907,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 115200;
+  huart1.Init.BaudRate = 31250;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -962,7 +1015,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOC, OLED_RST_Pin|OLED_DC_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, SPEAKER_EN_Pin|LED_HEARTBEAT_Pin|RELAY_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, SPKR_EN_Pin|LED_HEARTBEAT_Pin|RELAY_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : ROT_CLK_Pin ROT_SW_Pin OH_SHIT_BTN_Pin */
   GPIO_InitStruct.Pin = ROT_CLK_Pin|ROT_SW_Pin|OH_SHIT_BTN_Pin;
@@ -996,8 +1049,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(SPKR_EN_BTN_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : SPEAKER_EN_Pin LED_HEARTBEAT_Pin RELAY_Pin */
-  GPIO_InitStruct.Pin = SPEAKER_EN_Pin|LED_HEARTBEAT_Pin|RELAY_Pin;
+  /*Configure GPIO pins : SPKR_EN_Pin LED_HEARTBEAT_Pin RELAY_Pin */
+  GPIO_InitStruct.Pin = SPKR_EN_Pin|LED_HEARTBEAT_Pin|RELAY_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1024,6 +1077,14 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+// Needs to be defined in main because (eventually) there will be other UARTs in use
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
+	if(huart == get_keyboard_uart_ptr()) {
+    handle_midi_rx_it();
+    midi_start_rx_it();
+  }
+}
 
 /**
  * @brief  EXTI line detection callbacks.

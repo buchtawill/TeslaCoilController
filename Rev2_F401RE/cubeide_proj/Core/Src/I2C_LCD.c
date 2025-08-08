@@ -24,6 +24,14 @@ HAL_StatusTypeDef initLCD(LCD *dev, I2C_HandleTypeDef *handle, uint8_t nRows, ui
 	dev->addr = address<<1;
 	dev->handle = *handle;
 
+	// Try reading from CGRAM to see if we are already initialized (uc reset but not LCD)
+	// Need to debug reading functionality
+	// setCGRAMAddress(dev, 0b11100001); // a omlaut (german)
+	// uint8_t result;
+	// readByteFromDataReg(dev, &result);
+	// readByteFromDataReg(dev, &result);
+	// readByteFromDataReg(dev, &result);
+
 	//page 46 of datasheet
 	HAL_Delay(50);
 	HAL_StatusTypeDef stat = write4BitsToInstructionReg(dev, 0b0000);
@@ -125,7 +133,13 @@ HAL_StatusTypeDef writeToDDRAMAddress(LCD *dev, uint8_t addr, uint8_t byte){
  */
 HAL_StatusTypeDef setDDRAMAddress(LCD *dev, uint8_t addr){
 	//				  			command    7 bits of address
-	uint8_t dataByte = SET_DDRAM_ADDR_BIT | (addr & 0b01111111);
+	uint8_t dataByte = SET_DDRAM_ADDR_BIT | (addr & DDRAM_ADDR_MASK);
+	HAL_StatusTypeDef bruh = writeToRegister(dev, dataByte, LCD_INSTR_REG);
+	return bruh;
+}
+
+HAL_StatusTypeDef setCGRAMAddress(LCD *dev, uint8_t addr){
+	uint8_t dataByte = SET_CGRAM_ADDR_BIT | (addr & CGRAM_ADDR_MASK);
 	HAL_StatusTypeDef bruh = writeToRegister(dev, dataByte, LCD_INSTR_REG);
 	return bruh;
 }
@@ -211,6 +225,48 @@ HAL_StatusTypeDef writeToRegister(LCD *dev, uint8_t byte, uint8_t rs){
 	return bruh;
 }
 
+HAL_StatusTypeDef read4Bits(LCD *dev, uint8_t rs, uint8_t *outNibble) {
+    HAL_StatusTypeDef stat = HAL_OK;
+    uint8_t expanderVal = 0;
+
+    // Set RS and RW=1 (read), BT = backlight
+    expanderVal |= (rs ? (1 << RS) : 0);  // RS: 0 = instruction, 1 = data
+    expanderVal |= (1 << RW);            // RW = 1 for read
+    expanderVal |= (1 << BT);            // backlight on
+
+    // Send control byte with EN = 1 to latch data
+    expanderVal |= (1 << EN);
+    stat |= HAL_I2C_Master_Transmit(&(dev->handle), dev->addr, &expanderVal, 1, 1000);
+
+    // Read from the expander (data will be in D7-D4 bits)
+    uint8_t readVal = 0;
+    stat |= HAL_I2C_Master_Receive(&(dev->handle), dev->addr, &readVal, 1, 1000);
+
+    // Drop EN to complete read cycle
+    expanderVal &= ~(1 << EN);
+    stat |= HAL_I2C_Master_Transmit(&(dev->handle), dev->addr, &expanderVal, 1, 1000);
+
+    *outNibble = (readVal >> 4) & 0x0F;
+    return stat;
+}
+
+HAL_StatusTypeDef readByteFromInstructionReg(LCD *dev, uint8_t *outByte) {
+    uint8_t highNibble = 0, lowNibble = 0;
+    HAL_StatusTypeDef stat = read4Bits(dev, 0, &highNibble); // RS = 0
+    stat |= read4Bits(dev, RS_INSTR, &lowNibble);
+    *outByte = (highNibble << 4) | lowNibble;
+    return stat;
+}
+
+HAL_StatusTypeDef readByteFromDataReg(LCD *dev, uint8_t *outByte) {
+    uint8_t highNibble = 0, lowNibble = 0;
+    HAL_StatusTypeDef stat = read4Bits(dev, 1, &highNibble); // RS = 1
+    stat |= read4Bits(dev, RS_DATA, &lowNibble);
+    *outByte = (highNibble << 4) | lowNibble;
+    return stat;
+}
+
+
 /**
  * @brief	puts the LS nibble of bits onto db4-7
  */
@@ -250,4 +306,3 @@ HAL_StatusTypeDef writeAByte(LCD *dev, uint8_t byte){
 	HAL_Delay(1);
 	return stat | HAL_I2C_Master_Transmit(&(dev->handle), dev->addr, &byte, 1, 1000);
 }
-

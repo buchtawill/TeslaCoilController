@@ -79,8 +79,8 @@ void Error_Handler(void);
 #define SPKR_EN_BTN_Pin GPIO_PIN_1
 #define SPKR_EN_BTN_GPIO_Port GPIOB
 #define SPKR_EN_BTN_EXTI_IRQn EXTI1_IRQn
-#define SPEAKER_EN_Pin GPIO_PIN_12
-#define SPEAKER_EN_GPIO_Port GPIOB
+#define SPKR_EN_Pin GPIO_PIN_12
+#define SPKR_EN_GPIO_Port GPIOB
 #define LED_HEARTBEAT_Pin GPIO_PIN_13
 #define LED_HEARTBEAT_GPIO_Port GPIOB
 #define SDIO_DETECT_Pin GPIO_PIN_14
