@@ -2,20 +2,6 @@
 #include "main.h"
 
 
-static uint32_t millis = 0;
-
-void increment_millis(){
-    millis++;
-}
-
-uint32_t get_millis(){
-    return millis;
-}
-
-void reset_millis(){
-    millis = 0;
-}
-
 /**
  * @brief 	sets a given timer to a frequency of freq (Hz) and pulseWidth (us). Set pulsewidth to 0 to turn off
  * @param	pTim pointer to the timer struct
@@ -27,15 +13,13 @@ void setTimerFrequencyPulseWidth(TIM_HandleTypeDef* pTim, uint16_t freq, uint16_
 	//foo->bar = (*foo).bar
 	//frequency of auto reload (pwm frequency) = FCLK/(PSC+1)/(ARR+1)
 
-	//disable interrupts. turn timer off first tho
+	// Turn timer off first
 	pTim->Instance->CCR1 = 0;
-
-	__disable_irq();
-
+	pTim->Instance->CCR2 = 0;
 
 	if(pulseWidth != 0 && freq > 0){
 
-		uint16_t autoReloadReg, prescaler;
+		uint32_t autoReloadReg = 0, prescaler = 0;
 		//set bounds
 		//if(freq < 1)freq = 1;
 		if(freq>MAX_FREQUENCY) freq = MAX_FREQUENCY;
@@ -48,7 +32,7 @@ void setTimerFrequencyPulseWidth(TIM_HandleTypeDef* pTim, uint16_t freq, uint16_
 
 		//Precalculated prescalers. We could calculate these every function call,
 		//but why waste the time.
-		// It autoReloadReg needs to fit into 16 bits
+		// autoReloadReg and prescaler need to fit into 16 bits
 		if(freq == 1)        prescaler = 1024 - 1;
 		else if(freq <= 3)   prescaler = 512-1;
 		else if(freq <= 7)   prescaler = 256-1;
@@ -60,7 +44,7 @@ void setTimerFrequencyPulseWidth(TIM_HandleTypeDef* pTim, uint16_t freq, uint16_
 		else if(freq <= 511) prescaler = 4-1;
 		else prescaler = 2-1;
 
-		//always round down
+		//always round down (no need to -1, close enough)
 		autoReloadReg = CPU_CLK_HZ / ((prescaler+1) * freq);
 
 		//float usPerBit = ((float)(prescaler+1) / 32000000.0) * 1000000.0;
@@ -68,8 +52,8 @@ void setTimerFrequencyPulseWidth(TIM_HandleTypeDef* pTim, uint16_t freq, uint16_
 		float usPerBit = (float)(prescaler+1) / 64.0;
 		uint32_t bits = (uint32_t)((float)pulseWidth / usPerBit);
 
-		pTim->Instance->ARR = autoReloadReg;
-		pTim->Instance->PSC = prescaler;
+		pTim->Instance->ARR = (uint32_t)autoReloadReg;
+		pTim->Instance->PSC = (uint32_t)prescaler;
 		if(channel == TIM_CHANNEL_1)     pTim->Instance->CCR1 = bits;
 		else if(channel == TIM_CHANNEL_2)pTim->Instance->CCR2 = bits;
 	}
@@ -78,8 +62,8 @@ void setTimerFrequencyPulseWidth(TIM_HandleTypeDef* pTim, uint16_t freq, uint16_
 		pTim->Instance->CCR2 = 0;
 		//		HAL_TIM_PWM_Stop(ptim, channel);
 	}
-	//enable interrupts
-	__enable_irq();
+	// Force update of PSC/ARR immediately
+	pTim->Instance->EGR = TIM_EGR_UG;
 }
 
 // void stopTimer(TIM_HandleTypeDef* pTim, uint32_t channel){

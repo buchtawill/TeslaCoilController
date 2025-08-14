@@ -26,6 +26,7 @@
 #include "midi_keyboard_handler.h"
 #include "stdio.h"
 #include "timers.h"
+#include "midi.h"
 
 /* USER CODE END Includes */
 
@@ -55,11 +56,6 @@ SPI_HandleTypeDef hspi1;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
-TIM_HandleTypeDef htim3;
-TIM_HandleTypeDef htim4;
-TIM_HandleTypeDef htim5;
-TIM_HandleTypeDef htim9;
-TIM_HandleTypeDef htim10;
 TIM_HandleTypeDef htim11;
 
 UART_HandleTypeDef huart1;
@@ -84,6 +80,8 @@ uint16_t noteFreq[72] = {
 		 1047,    1109,   1175,  1245,   1319,   1397,   1480,   1568,   1661,   1760,   1865,   1976  // 6's
 };
 
+volatile uint64_t _millis = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -94,18 +92,22 @@ static void MX_I2C2_Init(void);
 static void MX_SDIO_SD_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM2_Init(void);
-static void MX_TIM3_Init(void);
-static void MX_TIM4_Init(void);
-static void MX_TIM5_Init(void);
-static void MX_TIM10_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_USART6_UART_Init(void);
-static void MX_TIM11_Init(void);
 static void MX_SPI1_Init(void);
-static void MX_TIM9_Init(void);
+static void MX_TIM11_Init(void);
 /* USER CODE BEGIN PFP */
 
+// Critical section safe to get millis cnt
+uint64_t get_millis(){
+	uint64_t t1, t2;
+	do {
+		t1 = _millis;
+		t2 = _millis;
+	} while (t1 != t2);
+	return t1;
+}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -146,17 +148,12 @@ int main(void)
   MX_SDIO_SD_Init();
   MX_TIM1_Init();
   MX_TIM2_Init();
-  MX_TIM3_Init();
-  MX_TIM4_Init();
-  MX_TIM5_Init();
-  MX_TIM10_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_USART6_UART_Init();
   MX_FATFS_Init();
-  MX_TIM11_Init();
   MX_SPI1_Init();
-  MX_TIM9_Init();
+  MX_TIM11_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -165,7 +162,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 
     /**
-     * What we need to worry about for interrupter FW version
+     * What we need to worry about for interrupter FW
      * 1.  USB messages from upstream source
      * 2.  Current player mode (Choose mode, SD mode, Fixed, Burst)
      * 3.  LCD status based on mode (Same as interrupter REV1) --> I2C2
@@ -178,7 +175,7 @@ int main(void)
      * 9.  Oh shit button: stop all pwm
      * 10. UART RX from the coils (Coil1: USART2, Coil2: USART6)
      * 11. UART RX from MIDI (USART1)
-     * 12. OLED screen (display stats about interrupter: battery voltage, temp, etc)
+     * 12. OLED screen (display stats about coils: battery voltage, temp, etc)
      * 13. SD Card I/O
      * 
      * Interrupts:
@@ -192,8 +189,8 @@ int main(void)
    * What we need to worry about for the display case
    * Main loop: Boot into MODE_SELECT screen. Either MODE_KEYBOARD or MODE_SD. As soon as a mode is selected,
    *            flip the relay and turn the coil on.
-   * 	If MODE_LIVE, Display instructions and a timer. Timer starts counting when first note is played.
-   * 	If SD mode, choose a song, play it.
+   * 	If MODE_KEYBOARD, Display instructions and a timer. Timer starts counting when first note is played.
+   * 	If SD mode, choose a song, play it, using piano keys as up/down keys
    *
    * 	After a song is done or live mode timer is done, go back to mode-select screen, display a DEAD_TIME_MIN minute timer and
    * 	a funny message
@@ -206,60 +203,76 @@ int main(void)
     //Initialize everything:
     // Start the timers
     // Initialize the LCD
-    // Start the ADC (DMA too?)
-    // Read the contents of the SD card and store in an array
+
+  	// Millis counter
+  	HAL_TIM_Base_Start_IT(&MILLIS_TIMER_HANDLE);
 	initLCD(&lcd, &hi2c2, MAX_ROW_LCD, 20, 0x27);
-	setCursor(&lcd, 0, 0);
-	(void)LCDCursorOffBlinkOff(&lcd);
+	LCDCursorOffBlinkOff(&lcd);
 	LCDPrintAtPos(&lcd, "Hello world", 0, 0);
-	LCDPrintAtPos(&lcd, ">", 1, 1);
-	LCDPrintAtPos(&lcd, "1.SD Card", 2, 1);
-	LCDPrintAtPos(&lcd, "2.Burst", 2, 2);
-	LCDPrintAtPos(&lcd, "3.Fixed", 2, 3);
 
-  // LED1 is TIM1 Ch1 and TIM2 Ch1
-
-  midi_keyboard_init(&huart1);
-  midi_start_rx_it();
+	keyboard_start_rx_it();
 
 	HAL_GPIO_WritePin(SPKR_EN_GPIO_Port, SPKR_EN_Pin, GPIO_PIN_SET);
 
+	// IF1 is TIM1 Ch1 and TIM2 Ch1
 	htim1.Instance->CCR1 = 0;
 	htim2.Instance->CCR2 = 0;
 	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
 
-	uint8_t max_pending = 0;
+	// main loop will receive midi messages and handle them accordingly
+	// If in choose mode, interpret midi messages as up/down/enter buttons
+	// else actual music
+
+	// 255 = not currently playing
+	uint8_t tim1_note = 255;
+	uint8_t tim2_note = 255;
 
     while (1){
+    	// Assuming we get thru this loop in less than a millisecond
+    	uint64_t loop_millis = get_millis();
 
-    	uint8_t num_midi_msg = num_pending_midi_msg();
-    	if(num_midi_msg > max_pending) max_pending = num_midi_msg;
-
-    	if(num_midi_msg > 0){
+    	uint8_t n_midi = num_pending_midi_msg();
+    	if(n_midi > 0){
     		MidiMsg_t msg;
     		deq_next_midi_msg(&msg);
-    		// clearDisplay(&lcd);
-    		// LCDPrintAtPos(&lcd, "Status Byte:", 0, 0);
-    		// char cbuf[18];
-    		// cbuf[17] = '\0';
-    		// snprintf(cbuf, 17, "0x%X", msg.status);
-    		// LCDPrintAtPos(&lcd, cbuf, 1, 1);
 
 			if((msg.status & 0xF0) == MIDI_MSG_NOTE_ON){
 			  // Keyboard defaults to leftmost key being note 48 (C3)
 			  // Our C3 is note 24
 			  uint8_t note_num = msg.db1;
 			  uint16_t freq = noteFreq[note_num-24];
-			  setTimerFrequencyPulseWidth(&htim1, freq, 75, TIM_CHANNEL_1);
+
+			  if(tim1_note == 255){
+				  setTimerFrequencyPulseWidth(&htim1, freq, 75, TIM_CHANNEL_1);
+				  tim1_note = note_num;
+			  }
+			  else if(tim2_note == 255){
+				  setTimerFrequencyPulseWidth(&htim2, freq, 75, TIM_CHANNEL_1);
+				  tim2_note = note_num;
+			  }
 			}
 			else if((msg.status & 0xF0) == MIDI_MSG_NOTE_OFF){
-			  setTimerFrequencyPulseWidth(&htim1, 0, 0, TIM_CHANNEL_1);
+			    uint8_t note_num = msg.db1;
+                if(tim1_note == note_num){
+			      setTimerFrequencyPulseWidth(&htim1, 0, 0, TIM_CHANNEL_1);
+                  tim1_note = 255; // off
+                }
+                else if(tim2_note == note_num){
+                    setTimerFrequencyPulseWidth(&htim2, 0, 0, TIM_CHANNEL_1);
+                    tim2_note = 255; // off
+                }
 			}
     	}
 
     	// GPIO_PinState val = HAL_GPIO_ReadPin(SPKR_EN_BTN_GPIO_Port, SPKR_EN_BTN_Pin);
-//    	HAL_GPIO_TogglePin(LED_HEARTBEAT_GPIO_Port, LED_HEARTBEAT_Pin);
-//	    HAL_Delay(100);
+
+    	static uint64_t heartbeat_dly_cnt = 0;
+    	if((loop_millis - heartbeat_dly_cnt) > 1000){
+    		HAL_GPIO_TogglePin(LED_HEARTBEAT_GPIO_Port, LED_HEARTBEAT_Pin);
+    		heartbeat_dly_cnt = loop_millis;
+    	}
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -485,9 +498,9 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 0;
+  htim1.Init.Prescaler = 128-1;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 0;
+  htim1.Init.Period = 100;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
@@ -559,9 +572,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 0;
+  htim2.Init.Prescaler = 64-1;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 4294967295;
+  htim2.Init.Period = 12;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -599,267 +612,6 @@ static void MX_TIM2_Init(void)
 }
 
 /**
-  * @brief TIM3 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM3_Init(void)
-{
-
-  /* USER CODE BEGIN TIM3_Init 0 */
-
-  /* USER CODE END TIM3_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
-
-  /* USER CODE BEGIN TIM3_Init 1 */
-
-  /* USER CODE END TIM3_Init 1 */
-  htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 0;
-  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 65535;
-  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM3_Init 2 */
-
-  /* USER CODE END TIM3_Init 2 */
-  HAL_TIM_MspPostInit(&htim3);
-
-}
-
-/**
-  * @brief TIM4 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM4_Init(void)
-{
-
-  /* USER CODE BEGIN TIM4_Init 0 */
-
-  /* USER CODE END TIM4_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
-
-  /* USER CODE BEGIN TIM4_Init 1 */
-
-  /* USER CODE END TIM4_Init 1 */
-  htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 0;
-  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 65535;
-  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_PWM_Init(&htim4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM4_Init 2 */
-
-  /* USER CODE END TIM4_Init 2 */
-  HAL_TIM_MspPostInit(&htim4);
-
-}
-
-/**
-  * @brief TIM5 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM5_Init(void)
-{
-
-  /* USER CODE BEGIN TIM5_Init 0 */
-
-  /* USER CODE END TIM5_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
-
-  /* USER CODE BEGIN TIM5_Init 1 */
-
-  /* USER CODE END TIM5_Init 1 */
-  htim5.Instance = TIM5;
-  htim5.Init.Prescaler = 0;
-  htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim5.Init.Period = 4294967295;
-  htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim5) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim5, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_PWM_Init(&htim5) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim5, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim5, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM5_Init 2 */
-
-  /* USER CODE END TIM5_Init 2 */
-  HAL_TIM_MspPostInit(&htim5);
-
-}
-
-/**
-  * @brief TIM9 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM9_Init(void)
-{
-
-  /* USER CODE BEGIN TIM9_Init 0 */
-
-  /* USER CODE END TIM9_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-
-  /* USER CODE BEGIN TIM9_Init 1 */
-
-  /* USER CODE END TIM9_Init 1 */
-  htim9.Instance = TIM9;
-  htim9.Init.Prescaler = 84-1;
-  htim9.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim9.Init.Period = 65535;
-  htim9.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim9.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim9) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim9, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM9_Init 2 */
-
-  /* USER CODE END TIM9_Init 2 */
-
-}
-
-/**
-  * @brief TIM10 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM10_Init(void)
-{
-
-  /* USER CODE BEGIN TIM10_Init 0 */
-
-  /* USER CODE END TIM10_Init 0 */
-
-  TIM_OC_InitTypeDef sConfigOC = {0};
-
-  /* USER CODE BEGIN TIM10_Init 1 */
-
-  /* USER CODE END TIM10_Init 1 */
-  htim10.Instance = TIM10;
-  htim10.Init.Prescaler = 0;
-  htim10.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim10.Init.Period = 65535;
-  htim10.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim10.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim10) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_OC_Init(&htim10) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_TIMING;
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_OC_ConfigChannel(&htim10, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM10_Init 2 */
-
-  /* USER CODE END TIM10_Init 2 */
-  HAL_TIM_MspPostInit(&htim10);
-
-}
-
-/**
   * @brief TIM11 Initialization Function
   * @param None
   * @retval None
@@ -871,16 +623,30 @@ static void MX_TIM11_Init(void)
 
   /* USER CODE END TIM11_Init 0 */
 
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
   /* USER CODE BEGIN TIM11_Init 1 */
 
   /* USER CODE END TIM11_Init 1 */
   htim11.Instance = TIM11;
-  htim11.Init.Prescaler = 42000-1;
+  htim11.Init.Prescaler = 64-1;
   htim11.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim11.Init.Period = 65535;
+  htim11.Init.Period = 1000-1;
   htim11.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim11.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim11.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim11) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_OC_Init(&htim11) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_TIMING;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_OC_ConfigChannel(&htim11, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -1079,10 +845,10 @@ static void MX_GPIO_Init(void)
 
 // Needs to be defined in main because (eventually) there will be other UARTs in use
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
-	if(huart == get_keyboard_uart_ptr()) {
-    handle_midi_rx_it();
-    midi_start_rx_it();
-  }
+	if(huart == &KEYBOARD_UART_HANDLE) {
+		handle_keyboard_rx_it();
+        keyboard_start_rx_it();
+    }
 }
 
 /**
@@ -1112,14 +878,10 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 
     //Millis
-	if (htim == &htim11) {
-    
+	if (htim == &MILLIS_TIMER_HANDLE) {
+		_millis++;
 	}
 
-    //Other
-    else if (htim == &htim9) {
-      
-	}
 }
 
 /* USER CODE END 4 */

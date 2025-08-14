@@ -18,22 +18,4 @@ void startTimer(TIM_HandleTypeDef* pTim, uint32_t channel);
 void stopTimer(TIM_HandleTypeDef* pTim, uint32_t channel);
 
 
-/**
- * @brief increment the millisecond counter
- * @return None
- */
-void increment_millis();
-
-/**
- * @brief get the current millisecond counter
- * @return millisecond counter
- */
-uint32_t get_millis();
-
-/**
- * @brief Set the current millis timer to 0
- */
-void reset_millis();
-
-
 #endif //#ifndef __TIMERS_H__

@@ -121,6 +121,12 @@ void Error_Handler(void);
 #define MAX_NUM_FILES    	32
 #define MAX_FILENAME_LENGTH 64
 
+extern UART_HandleTypeDef huart1;
+extern TIM_HandleTypeDef  htim11;
+
+#define KEYBOARD_UART_HANDLE huart1
+#define MILLIS_TIMER_HANDLE  htim11
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
