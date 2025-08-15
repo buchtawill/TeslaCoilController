@@ -39,21 +39,20 @@ void midi_enq_and_reset_state(){
 	num_in_midi_msg_q++;
 }
 
-void deq_next_midi_msg(MidiMsg_t* p_msg){
+MidiMsg_t* deq_next_midi_msg(){
+	MidiMsg_t *retval = NULL;
 	__disable_irq();
 	uint8_t midi_tail_idx = midi_q_tail % MIDI_MSG_Q_LEN;
 	if(num_in_midi_msg_q == 0){
-		p_msg = NULL;
+		retval = NULL;
 	}
 	else{
-//		p_msg = &midi_msg_q[midi_tail_idx];
-		p_msg->status = midi_msg_q[midi_tail_idx].status;
-		p_msg->db1 = midi_msg_q[midi_tail_idx].db1;
-		p_msg->db2 = midi_msg_q[midi_tail_idx].db2;
+		retval = &midi_msg_q[midi_tail_idx];
 		midi_q_tail++;
 		num_in_midi_msg_q--;
 	}
 	__enable_irq();
+	return retval;
 }
 
 uint8_t num_pending_midi_msg(){

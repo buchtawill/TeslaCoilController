@@ -90,6 +90,15 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN Private defines */
 
+typedef enum{
+	S_CHOOSE_MODE = 0,
+	S_CHOOSE_SD_SONG,
+	S_PLAYING_KEYBOARD,
+	S_PLAYING_SD_SONG,
+	S_PRE_COOLDOWN,
+	S_COOLDOWN
+} UCState;
+
 //State definitions
 #define INTERRUPTER_MODE_CHOOSE   0 //Choose the interrupter mode
 #define INTERRUPTER_MODE_SD       1 //SD mode

@@ -1,6 +1,11 @@
 #include "timers.h"
 #include "main.h"
+#include "midi.h"
 
+extern TIM_HandleTypeDef htim1;
+extern TIM_HandleTypeDef htim2;
+static uint8_t tim1_note = 255;
+static uint8_t tim2_note = 255;
 
 /**
  * @brief 	sets a given timer to a frequency of freq (Hz) and pulseWidth (us). Set pulsewidth to 0 to turn off
@@ -14,8 +19,11 @@ void setTimerFrequencyPulseWidth(TIM_HandleTypeDef* pTim, uint16_t freq, uint16_
 	//frequency of auto reload (pwm frequency) = FCLK/(PSC+1)/(ARR+1)
 
 	// Turn timer off first
+	// Clear all just in case
 	pTim->Instance->CCR1 = 0;
 	pTim->Instance->CCR2 = 0;
+	pTim->Instance->CCR3 = 0;
+	pTim->Instance->CCR4 = 0;
 
 	if(pulseWidth != 0 && freq > 0){
 
@@ -57,16 +65,53 @@ void setTimerFrequencyPulseWidth(TIM_HandleTypeDef* pTim, uint16_t freq, uint16_
 		if(channel == TIM_CHANNEL_1)     pTim->Instance->CCR1 = bits;
 		else if(channel == TIM_CHANNEL_2)pTim->Instance->CCR2 = bits;
 	}
-	else{
-		pTim->Instance->CCR1 = 0;
-		pTim->Instance->CCR2 = 0;
-		//		HAL_TIM_PWM_Stop(ptim, channel);
-	}
 	// Force update of PSC/ARR immediately
 	pTim->Instance->EGR = TIM_EGR_UG;
 }
 
-// void stopTimer(TIM_HandleTypeDef* pTim, uint32_t channel){
-// 	pTim->Instance->CCR1 = 0;
-// 	HAL_TIM_PWM_Stop(pTim, channel);
-// }
+
+void handle_midi_output_msg(MidiMsg_t *msg){
+
+	// Note on
+	if((msg->status & 0xF0) == MIDI_MSG_NOTE_ON){
+
+		// Keyboard defaults to leftmost key being note 48 (C3)
+		uint8_t note_num = msg->db1;
+
+		// We only have 96 entries in the MIDI_NOTE_FREQ table
+		if(note_num >= 96){
+			return;
+		}
+		uint16_t freq = midi_note_to_freq(note_num);
+
+		if(tim1_note == 255){
+			setTimerFrequencyPulseWidth(&htim1, freq, 75, TIM_CHANNEL_1);
+			tim1_note = note_num;
+		}
+		else if(tim2_note == 255){
+			setTimerFrequencyPulseWidth(&htim2, freq, 75, TIM_CHANNEL_1);
+			tim2_note = note_num;
+		}
+	}
+
+	// Note off
+	else if((msg->status & 0xF0) == MIDI_MSG_NOTE_OFF){
+		uint8_t note_num = msg->db1;
+		if(tim1_note == note_num){
+			setTimerFrequencyPulseWidth(&htim1, 0, 0, TIM_CHANNEL_1);
+			tim1_note = 255; // off
+		}
+		else if(tim2_note == note_num){
+			setTimerFrequencyPulseWidth(&htim2, 0, 0, TIM_CHANNEL_1);
+			tim2_note = 255; // off
+		}
+	}
+}
+
+
+void shutoff_all_notes(){
+	tim1_note = 255; // off
+	tim2_note = 255; // off
+	setTimerFrequencyPulseWidth(&htim1, 0, 0, TIM_CHANNEL_1);
+	setTimerFrequencyPulseWidth(&htim2, 0, 0, TIM_CHANNEL_1);
+}

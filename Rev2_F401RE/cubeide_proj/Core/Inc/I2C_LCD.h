@@ -79,7 +79,7 @@ typedef struct {
  * @param address the I2C address of the IO expander connected to the LCD
  * @return HAL_StatusTypeDef
  */
-HAL_StatusTypeDef initLCD(LCD *dev, I2C_HandleTypeDef *handle, uint8_t nRows, uint8_t nCols, uint8_t address);
+HAL_StatusTypeDef initLCD(LCD *dev, I2C_HandleTypeDef *handle, uint8_t nRows, uint8_t nCols, uint8_t address, uint8_t do_init);
 
 /**
  * @brief	Clears the display, resets any shift that may have been present, and

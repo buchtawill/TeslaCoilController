@@ -3,6 +3,7 @@
 
 #include "stm32f4xx_hal.h"
 #include "main.h"
+#include "midi.h"
 
 #define CPU_CLK_HZ          64000000
 #define MAX_PULSE_WIDTH     150 //microseconds
@@ -17,5 +18,16 @@ void setTimerFrequencyPulseWidth(TIM_HandleTypeDef* pTim, uint16_t freq, uint16_
 void startTimer(TIM_HandleTypeDef* pTim, uint32_t channel);
 void stopTimer(TIM_HandleTypeDef* pTim, uint32_t channel);
 
+/**
+ * @brief handle MIDI messages that are meant to produce sound. Keep track of which timers are doing which note.
+ * This function has no concept of which coil is which and will assume that channel 0 corresponds to 2 timers, channel 1
+ * corresponds to 2 other timers, etc
+ */
+void handle_midi_output_msg(MidiMsg_t *msg);
+
+/**
+ * @brief Turn off all PWM and reset the state of the note tracker
+ */
+void shutoff_all_notes();
 
 #endif //#ifndef __TIMERS_H__

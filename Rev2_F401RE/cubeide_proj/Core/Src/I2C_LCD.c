@@ -18,7 +18,7 @@
 /*
  * Initializes LCD struct, resets the LCD, and sets it to 4 bit mode
  */
-HAL_StatusTypeDef initLCD(LCD *dev, I2C_HandleTypeDef *handle, uint8_t nRows, uint8_t nCols, uint8_t address){
+HAL_StatusTypeDef initLCD(LCD *dev, I2C_HandleTypeDef *handle, uint8_t nRows, uint8_t nCols, uint8_t address, uint8_t do_init){
 	dev->cols = nCols;
 	dev->rows = nRows;
 	dev->addr = address<<1;
@@ -31,25 +31,27 @@ HAL_StatusTypeDef initLCD(LCD *dev, I2C_HandleTypeDef *handle, uint8_t nRows, ui
 	// readByteFromDataReg(dev, &result);
 	// readByteFromDataReg(dev, &result);
 	// readByteFromDataReg(dev, &result);
+	HAL_StatusTypeDef stat = HAL_OK;
+	if(do_init){
+		//page 46 of datasheet
+		HAL_Delay(50);
+		HAL_StatusTypeDef stat = write4BitsToInstructionReg(dev, 0b0000);
+		HAL_Delay(50);
+		write4BitsToInstructionReg(dev, 0b0010);
+		HAL_Delay(50);
+		//	write4BitsToInstructionReg(dev, 0b0010);
+		//	HAL_Delay(50);
 
-	//page 46 of datasheet
-	HAL_Delay(50);
-	HAL_StatusTypeDef stat = write4BitsToInstructionReg(dev, 0b0000);
-	HAL_Delay(50);
-	write4BitsToInstructionReg(dev, 0b0010);
-	HAL_Delay(50);
-	//	write4BitsToInstructionReg(dev, 0b0010);
-	//	HAL_Delay(50);
+		//clear display
+		stat |= writeToRegister(dev, 0b00000001, LCD_INSTR_REG);
+		HAL_Delay(50);
 
-	//clear display
-	stat |= writeToRegister(dev, 0b00000001, LCD_INSTR_REG);
-	HAL_Delay(50);
+		stat |= writeToRegister(dev, 0b00000010, LCD_INSTR_REG);
+		HAL_Delay(50);
 
-	stat |= writeToRegister(dev, 0b00000010, LCD_INSTR_REG);
-	HAL_Delay(50);
-
-	stat |= writeToRegister(dev, 0b00001101, LCD_INSTR_REG);
-	HAL_Delay(50);
+		stat |= writeToRegister(dev, 0b00001101, LCD_INSTR_REG);
+		HAL_Delay(50);
+	}
 
 	return stat;
 }

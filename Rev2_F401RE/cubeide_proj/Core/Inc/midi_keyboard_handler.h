@@ -41,8 +41,9 @@ void midi_enq_and_reset_state();
 uint8_t num_pending_midi_msg();
 
 /**
- * Get the next pending midi message
+ * Get the next pending midi message, if there's one available
+ * @return NULL if no messages available
  */
-void deq_next_midi_msg(MidiMsg_t* p_msg);
+MidiMsg_t* deq_next_midi_msg();
 
 #endif /* INC_MIDI_KEYBOARD_HANDLER_H_ */

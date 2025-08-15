@@ -70,16 +70,6 @@ FILINFO   fno;
 DIR       dir;
 LCD       lcd;
 
-uint16_t noteFreq[72] = {
-		//c,      c#,     d,      d#,     e,      f,      f#,     G,      g#,     a,      a#,     b
-		 33,      35,     37,     39,     41,     44,     46,     49,     52,     55,     58,     61,  // 1's
-		 65,      69,     73,     78,     82,     87,     93,     98,     104,    110,    117,    123, // 2's
-		 131,     139,    147,    156,    165,    175,    185,    196,    208,    220,    233,    247, // 3's
-		 262,     277,    294,    311,    330,    349,    370,    392,    415,    440,    466,    494, // 4's
-		 523,     554,    587,    622,    659,    698,    740,    784,    831,    880,    932,    988, // 5's
-		 1047,    1109,   1175,  1245,   1319,   1397,   1480,   1568,   1661,   1760,   1865,   1976  // 6's
-};
-
 volatile uint64_t _millis = 0;
 
 /* USER CODE END PV */
@@ -206,9 +196,11 @@ int main(void)
 
   	// Millis counter
   	HAL_TIM_Base_Start_IT(&MILLIS_TIMER_HANDLE);
-	initLCD(&lcd, &hi2c2, MAX_ROW_LCD, 20, 0x27);
+	initLCD(&lcd, &hi2c2, MAX_ROW_LCD, 20, 0x27, 1);
 	LCDCursorOffBlinkOff(&lcd);
-	LCDPrintAtPos(&lcd, "Hello world", 0, 0);
+	LCDPrintAtPos(&lcd, "Hello! Use the piano", 0, 0);
+	LCDPrintAtPos(&lcd, "keys to navigate.", 0, 1);
+	HAL_Delay(1000);
 
 	keyboard_start_rx_it();
 
@@ -225,52 +217,94 @@ int main(void)
 	// else actual music
 
 	// 255 = not currently playing
-	uint8_t tim1_note = 255;
-	uint8_t tim2_note = 255;
+	uint32_t led_start_time = 0;
+	uint64_t t_cooldown_start = 0;
+	uint64_t t_keyboard_start = 0;
+
+	int64_t cooldown_ms_left = 0;
+	int64_t keyboard_ms_left = 0;
+	uint16_t cooldown_sec_left = 0;
+	uint16_t keyboard_sec_left = 0;
+	int64_t prev_cooldown_sec_left = 0;
+	int64_t prev_keyboard_sec_left = 0;
+
+	// Boot into cooldown state
+	UCState top_state = S_PRE_COOLDOWN;
 
     while (1){
-    	// Assuming we get thru this loop in less than a millisecond
-    	uint64_t loop_millis = get_millis();
 
-    	uint8_t n_midi = num_pending_midi_msg();
-    	if(n_midi > 0){
-    		MidiMsg_t msg;
-    		deq_next_midi_msg(&msg);
-
-			if((msg.status & 0xF0) == MIDI_MSG_NOTE_ON){
-			  // Keyboard defaults to leftmost key being note 48 (C3)
-			  // Our C3 is note 24
-			  uint8_t note_num = msg.db1;
-			  uint16_t freq = noteFreq[note_num-24];
-
-			  if(tim1_note == 255){
-				  setTimerFrequencyPulseWidth(&htim1, freq, 75, TIM_CHANNEL_1);
-				  tim1_note = note_num;
-			  }
-			  else if(tim2_note == 255){
-				  setTimerFrequencyPulseWidth(&htim2, freq, 75, TIM_CHANNEL_1);
-				  tim2_note = note_num;
-			  }
-			}
-			else if((msg.status & 0xF0) == MIDI_MSG_NOTE_OFF){
-			    uint8_t note_num = msg.db1;
-                if(tim1_note == note_num){
-			      setTimerFrequencyPulseWidth(&htim1, 0, 0, TIM_CHANNEL_1);
-                  tim1_note = 255; // off
-                }
-                else if(tim2_note == note_num){
-                    setTimerFrequencyPulseWidth(&htim2, 0, 0, TIM_CHANNEL_1);
-                    tim2_note = 255; // off
-                }
-			}
+    	// Check for new midi messages
+    	// Any state can access this midi message and interpret it how it wants
+    	MidiMsg_t *p_msg = deq_next_midi_msg(p_msg);
+    	if(p_msg != NULL){
+    		led_start_time = get_millis();
+    		HAL_GPIO_WritePin(LED_HEARTBEAT_GPIO_Port, LED_HEARTBEAT_Pin, GPIO_PIN_SET);
     	}
+
+		switch (top_state){
+		case S_PRE_COOLDOWN:
+			t_cooldown_start = get_millis();
+			clearDisplay(&lcd);
+			LCDPrintAtPos(&lcd, "In Cooldown...", 0, 0);
+			LCDPrintAtPos(&lcd, "Time left: ", 0, 1);
+			top_state = S_COOLDOWN;
+			break;
+		////////////////////////////////////////////////////////////////////
+		case S_COOLDOWN:
+			cooldown_ms_left = 10000 - (get_millis() - t_cooldown_start);
+			cooldown_sec_left = 1 + cooldown_ms_left / 1000;
+			if(cooldown_sec_left != prev_cooldown_sec_left){
+				prev_cooldown_sec_left = cooldown_sec_left;
+				char buf[8];
+				snprintf(buf, 8, "%6u", cooldown_sec_left);
+				LCDPrintAtPos(&lcd, buf, 10, 1);
+			}
+			if(cooldown_ms_left <= 0){
+				top_state = S_CHOOSE_MODE;
+			}
+			break;
+		////////////////////////////////////////////////////////////////////
+		case S_CHOOSE_MODE:
+			top_state = S_PLAYING_KEYBOARD;
+			t_keyboard_start = get_millis();
+			clearDisplay(&lcd);
+			LCDPrintAtPos(&lcd, "In Keyboard Mode.", 0, 0);
+			LCDPrintAtPos(&lcd, "Time left: ", 0, 1);
+			break;
+		////////////////////////////////////////////////////////////////////
+		case S_PLAYING_KEYBOARD:
+			keyboard_ms_left = 10000 - (get_millis() - t_keyboard_start);
+			keyboard_sec_left = 1 + keyboard_ms_left / 1000;
+			if(keyboard_sec_left != prev_keyboard_sec_left){
+				prev_keyboard_sec_left = keyboard_sec_left;
+				char buf[8];
+				snprintf(buf, 8, "%5u", keyboard_sec_left);
+				LCDPrintAtPos(&lcd, buf, 10, 1);
+			}
+
+			if(p_msg != NULL){
+				handle_midi_output_msg(p_msg);
+			}
+			if(keyboard_ms_left <= 0){
+				shutoff_all_notes();
+				top_state = S_PRE_COOLDOWN;
+			}
+			break;
+		////////////////////////////////////////////////////////////////////
+		case S_CHOOSE_SD_SONG:
+			break;
+		////////////////////////////////////////////////////////////////////
+		case S_PLAYING_SD_SONG:
+			break;
+		////////////////////////////////////////////////////////////////////
+		default: break;
+
+		} // switch(top_state)
 
     	// GPIO_PinState val = HAL_GPIO_ReadPin(SPKR_EN_BTN_GPIO_Port, SPKR_EN_BTN_Pin);
 
-    	static uint64_t heartbeat_dly_cnt = 0;
-    	if((loop_millis - heartbeat_dly_cnt) > 1000){
-    		HAL_GPIO_TogglePin(LED_HEARTBEAT_GPIO_Port, LED_HEARTBEAT_Pin);
-    		heartbeat_dly_cnt = loop_millis;
+    	if((get_millis() - led_start_time) > 25){
+    		HAL_GPIO_WritePin(LED_HEARTBEAT_GPIO_Port, LED_HEARTBEAT_Pin, GPIO_PIN_RESET);
     	}
 
     /* USER CODE END WHILE */
