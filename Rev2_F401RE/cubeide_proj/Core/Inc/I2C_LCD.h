@@ -12,6 +12,9 @@
 
 #ifndef INC_I2C_LCD_H_
 #define INC_I2C_LCD_H_
+#ifdef __cplusplus
+ extern "C" {
+#endif
 
 #include "main.h"
 #include "stm32f4xx_hal.h"
@@ -107,7 +110,7 @@ HAL_StatusTypeDef setCursor(LCD *dev, uint8_t col, uint8_t row);
  * @param pString null terminated string to write to the LCD
  * @return HAL_StatusTypeDef
  */
-HAL_StatusTypeDef LCDPrint(LCD *dev, char *pString);
+HAL_StatusTypeDef LCDPrint(LCD *dev, const char *pString);
 
 /**
  * @brief Write a string to the LCD at the specified position
@@ -117,7 +120,7 @@ HAL_StatusTypeDef LCDPrint(LCD *dev, char *pString);
  * @param row row to write the string at
  * @return HAL_StatusTypeDef
  */
-HAL_StatusTypeDef LCDPrintAtPos(LCD *dev, char *pString, uint8_t col, uint8_t row);
+HAL_StatusTypeDef LCDPrintAtPos(LCD *dev, const char *pString, uint8_t col, uint8_t row);
 
 /**
  * @brief Write a number to the LCD at the specified position
@@ -228,5 +231,9 @@ HAL_StatusTypeDef read4Bits(LCD *dev, uint8_t rs, uint8_t *outNibble);
 HAL_StatusTypeDef readByteFromInstructionReg(LCD *dev, uint8_t *outByte);
 HAL_StatusTypeDef readByteFromDataReg(LCD *dev, uint8_t *outByte);
 HAL_StatusTypeDef setCGRAMAddress(LCD *dev, uint8_t addr);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* INC_I2C_LCD_H_ */

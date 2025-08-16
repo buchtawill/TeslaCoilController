@@ -133,6 +133,8 @@ typedef enum{
 extern UART_HandleTypeDef huart1;
 extern TIM_HandleTypeDef  htim11;
 
+extern I2C_HandleTypeDef hi2c2;
+
 #define KEYBOARD_UART_HANDLE huart1
 #define MILLIS_TIMER_HANDLE  htim11
 

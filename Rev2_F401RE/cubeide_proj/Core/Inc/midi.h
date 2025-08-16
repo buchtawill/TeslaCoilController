@@ -7,7 +7,9 @@
 
 #ifndef MIDI_H
 #define MIDI_H
-
+#ifdef __cplusplus
+ extern "C" {
+#endif
 #include <stdint.h>
 #include <stddef.h> // for size_t
 
@@ -141,5 +143,7 @@ static inline uint8_t calc_midi_msg_tot_num_bytes(uint8_t status_byte){
     }
 }
 
-
+#ifdef __cplusplus
+}
+#endif
 #endif

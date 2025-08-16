@@ -78,7 +78,7 @@ HAL_StatusTypeDef setCursor(LCD *dev, uint8_t col, uint8_t row){
 /**
  *	@brief	prints a given char array to the screen. Set the position first.
  */
-HAL_StatusTypeDef LCDPrint(LCD *dev, char *pString){
+HAL_StatusTypeDef LCDPrint(LCD *dev, const char *pString){
 	uint8_t len = strlen(pString);
 	HAL_StatusTypeDef stat = HAL_OK;
 	for(int i = 0; i<len; i++){
@@ -114,7 +114,7 @@ HAL_StatusTypeDef LCDPrintNumber(LCD *dev, uint16_t num, uint8_t col, uint8_t ro
 	return stat;
 }
 
-HAL_StatusTypeDef LCDPrintAtPos(LCD *dev, char *pString, uint8_t col, uint8_t row){
+HAL_StatusTypeDef LCDPrintAtPos(LCD *dev, const char *pString, uint8_t col, uint8_t row){
 	//	uint8_t len = strlen(pString);
 	HAL_StatusTypeDef stat = setCursor(dev, col, row);
 	return stat | LCDPrint(dev, pString);

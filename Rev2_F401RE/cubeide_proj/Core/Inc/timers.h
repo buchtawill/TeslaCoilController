@@ -1,6 +1,8 @@
 #ifndef __TIMERS_H__
 #define __TIMERS_H__
-
+#ifdef __cplusplus
+ extern "C" {
+#endif
 #include "stm32f4xx_hal.h"
 #include "main.h"
 #include "midi.h"
@@ -14,6 +16,14 @@
 #define MAX_TIME_ON      		500  // ms, for burst mode
 #define MAX_TIME_OFF  			500  // ms, for burst mode
 
+/**
+ * @brief 	sets a given timer to a frequency of freq (Hz) and pulseWidth (us). Set pulsewidth to 0 to turn off
+ * @param	pTim pointer to the timer struct
+ * @param	freq frequency in hertz
+ * @param	pulseWidth desired pulsewidth in microseconds. Be careful of low frequencies!
+ * @param channel the timer channel of pTim to apply this to
+ * @param pre_shutoff whether or not to pre-zero CCRx
+ */
 void setTimerFrequencyPulseWidth(TIM_HandleTypeDef* pTim, uint16_t freq, uint16_t pulseWidth, uint32_t channel);
 void startTimer(TIM_HandleTypeDef* pTim, uint32_t channel);
 void stopTimer(TIM_HandleTypeDef* pTim, uint32_t channel);
@@ -30,4 +40,12 @@ void handle_midi_output_msg(MidiMsg_t *msg);
  */
 void shutoff_all_notes();
 
+/**
+ * Do any initialization needed for timers.c
+ */
+void init_timers();
+
+#ifdef __cplusplus
+}
+#endif
 #endif //#ifndef __TIMERS_H__

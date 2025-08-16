@@ -9,7 +9,9 @@
 
 #ifndef MIDI_KEYBOARD_HANDLER_H_
 #define MIDI_KEYBOARD_HANDLER_H_
-
+#ifdef __cplusplus
+ extern "C" {
+#endif
 #include "main.h"
 #include "midi.h"
 
@@ -45,5 +47,9 @@ uint8_t num_pending_midi_msg();
  * @return NULL if no messages available
  */
 MidiMsg_t* deq_next_midi_msg();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* INC_MIDI_KEYBOARD_HANDLER_H_ */
