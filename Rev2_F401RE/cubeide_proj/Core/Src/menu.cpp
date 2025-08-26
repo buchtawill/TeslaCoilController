@@ -71,7 +71,6 @@ HAL_StatusTypeDef init_menu(){
 
     mstate = S_MENU_CHOOSE_MODE;
 
-
     initLCD(&lcd, &hi2c2, MAX_ROW_LCD, 20, 0x27, 1);
 	LCDCursorOffBlinkOff(&lcd);
 	LCDPrintAtPos(&lcd, "Hello! Use the piano", 0, 0);
