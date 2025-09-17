@@ -81,7 +81,7 @@ private:
 
 class MenuItem {
 public:
-	MenuItem(std::string )
+	MenuItem(std::string);
 };
 
 #endif /* INC_MENU_H_ */

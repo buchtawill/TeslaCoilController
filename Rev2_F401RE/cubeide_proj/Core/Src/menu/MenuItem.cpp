@@ -12,7 +12,7 @@ MenuItem::MenuItem() {
 
 }
 
-MenuItem::MenuAction() {
+void MenuItem::MenuAction() {
 	// TODO implement
 }
 

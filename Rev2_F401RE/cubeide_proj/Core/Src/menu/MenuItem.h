@@ -11,7 +11,7 @@
 class MenuItem {
 public:
 	MenuItem();
-	MenuAction();
+	void MenuAction();
 	virtual ~MenuItem();
 };
 

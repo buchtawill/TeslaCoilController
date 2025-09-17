@@ -17,6 +17,7 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
+#include <stdint.h>
 #include "main.h"
 #include "fatfs.h"
 
@@ -57,6 +58,7 @@ SPI_HandleTypeDef hspi1;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim9;
 TIM_HandleTypeDef htim11;
 
 UART_HandleTypeDef huart1;
@@ -83,6 +85,7 @@ static void MX_I2C2_Init(void);
 static void MX_SDIO_SD_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_TIM9_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_USART6_UART_Init(void);
@@ -100,6 +103,8 @@ uint64_t get_millis(){
 	return t1;
 }
 /* USER CODE END PFP */
+
+uint64_t gInitTime = 0;
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
@@ -139,6 +144,7 @@ int main(void)
   MX_SDIO_SD_Init();
   MX_TIM1_Init();
   MX_TIM2_Init();
+  MX_TIM9_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_USART6_UART_Init();
@@ -214,6 +220,15 @@ int main(void)
 	// main loop will receive midi messages and handle them accordingly
 	// If in choose mode, interpret midi messages as up/down/enter buttons
 	// else actual music
+
+	__HAL_TIM_DISABLE_IT(&htim9, TIM_IT_UPDATE);
+	__HAL_TIM_SET_AUTORELOAD(&htim9, 1000);
+	__HAL_TIM_SET_COUNTER(&htim9, 0);
+	__HAL_TIM_ENABLE_IT(&htim9, TIM_IT_UPDATE);
+
+	gInitTime = get_millis();
+
+	HAL_TIM_OnePulse_Start_IT(&htim9, TIM_CHANNEL_1);
 
 	// 255 = not currently playing
 	uint32_t led_start_time = 0;
@@ -637,6 +652,57 @@ static void MX_TIM2_Init(void)
 }
 
 /**
+  * @brief TIM9 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM9_Init(void)
+{
+
+  /* USER CODE BEGIN TIM9_Init 0 */
+
+  /* USER CODE END TIM9_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM9_Init 1 */
+
+  /* USER CODE END TIM9_Init 1 */
+  htim9.Instance = TIM9;
+  htim9.Init.Prescaler = 64000-1;
+  htim9.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim9.Init.Period = 65535;
+  htim9.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim9.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim9) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim9, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_OC_Init(&htim9) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_TIMING;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_OC_ConfigChannel(&htim9, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM9_Init 2 */
+
+  /* USER CODE END TIM9_Init 2 */
+
+}
+
+/**
   * @brief TIM11 Initialization Function
   * @param None
   * @retval None
@@ -906,6 +972,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	if (htim == &MILLIS_TIMER_HANDLE) {
 		_millis++;
 	}
+
+	if(htim == &SD_TIMER_HANDLE){
+		uint64_t dummy = get_millis() - gInitTime;
+		int a = 1;
+	};
 
 }
 

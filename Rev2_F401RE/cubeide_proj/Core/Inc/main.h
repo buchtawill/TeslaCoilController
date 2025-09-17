@@ -28,6 +28,7 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f4xx_hal.h"
+#include "stm32f4xx_hal_tim.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -137,6 +138,7 @@ extern I2C_HandleTypeDef hi2c2;
 
 #define KEYBOARD_UART_HANDLE huart1
 #define MILLIS_TIMER_HANDLE  htim11
+#define SD_TIMER_HANDLE htim9
 
 /* USER CODE END Private defines */
 
