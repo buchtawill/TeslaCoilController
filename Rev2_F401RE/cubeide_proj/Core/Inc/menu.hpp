@@ -14,6 +14,8 @@
 #ifndef INC_MENU_H_
 #define INC_MENU_H_
 
+#include <string>
+
 /**
  * Define command types from main to menu
  */
@@ -58,5 +60,28 @@ HAL_StatusTypeDef menu_update_keyboard_msg(uint16_t time_left);
  * Top-level state machine that holds the menu's state
  */
 MenuRsp_t update_menu(MenuCmd cmd);
+
+class IRenderable {
+public:
+	virtual void render();
+	virtual ~IRenderable() {};
+};
+
+class Menu : public IRenderable {
+public:
+	Menu();
+
+	void initMenu();
+	void addMenuItem();
+
+	void updateMenuSelection();
+private:
+	std::string menuName_;
+};
+
+class MenuItem {
+public:
+	MenuItem(std::string )
+};
 
 #endif /* INC_MENU_H_ */
