@@ -57,6 +57,7 @@ SPI_HandleTypeDef hspi1;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim9;
 TIM_HandleTypeDef htim11;
 
 UART_HandleTypeDef huart1;
@@ -70,8 +71,6 @@ FRESULT   fresult;
 FILINFO   fno;
 DIR       dir;
 LCD       lcd;
-
-volatile uint64_t _millis = 0;
 
 /* USER CODE END PV */
 
@@ -88,21 +87,17 @@ static void MX_USART2_UART_Init(void);
 static void MX_USART6_UART_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM11_Init(void);
+static void MX_TIM9_Init(void);
 /* USER CODE BEGIN PFP */
 
-// Critical section safe to get millis cnt
-uint64_t get_millis(){
-	uint64_t t1, t2;
-	do {
-		t1 = _millis;
-		t2 = _millis;
-	} while (t1 != t2);
-	return t1;
-}
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+// void toggle_speaker_en_pin(){
+//   HAL_GPIO_TogglePin(SPKR_EN_GPIO_Port, SPKR_EN_Pin);
+// }
 
 /* USER CODE END 0 */
 
@@ -145,6 +140,7 @@ int main(void)
   MX_FATFS_Init();
   MX_SPI1_Init();
   MX_TIM11_Init();
+  MX_TIM9_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -196,14 +192,15 @@ int main(void)
     // Initialize the LCD
 
   	// Millis counter
-  	HAL_TIM_Base_Start_IT(&MILLIS_TIMER_HANDLE);
     init_timers();
+  	HAL_TIM_Base_Start_IT(&MILLIS_TIMER_HANDLE);
     init_menu();
 	HAL_Delay(1000);
   
 	keyboard_start_rx_it();
 
 	HAL_GPIO_WritePin(SPKR_EN_GPIO_Port, SPKR_EN_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(RELAY_GPIO_Port, RELAY_Pin, GPIO_PIN_RESET);
 
 	// IF1 is TIM1 Ch1 and TIM2 Ch1
 	htim1.Instance->CCR1 = 0;
@@ -297,6 +294,13 @@ int main(void)
     	if((get_millis() - led_start_time) > 25){
     		HAL_GPIO_WritePin(LED_HEARTBEAT_GPIO_Port, LED_HEARTBEAT_Pin, GPIO_PIN_RESET);
     	}
+
+        // Test if the relay works
+//    	static uint64_t relay_time = 0;
+//    	if((get_millis() - relay_time) > 1000){
+//    		relay_time = get_millis();
+//    		HAL_GPIO_TogglePin(RELAY_GPIO_Port, RELAY_Pin);
+//    	}
 
     /* USER CODE END WHILE */
 
@@ -637,6 +641,61 @@ static void MX_TIM2_Init(void)
 }
 
 /**
+  * @brief TIM9 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM9_Init(void)
+{
+
+  /* USER CODE BEGIN TIM9_Init 0 */
+
+  /* USER CODE END TIM9_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM9_Init 1 */
+
+  /* USER CODE END TIM9_Init 1 */
+  htim9.Instance = TIM9;
+  htim9.Init.Prescaler = 64000-1;
+  htim9.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim9.Init.Period = 1000-1;
+  htim9.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim9.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim9) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim9, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_OC_Init(&htim9) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_OnePulse_Init(&htim9, TIM_OPMODE_SINGLE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_TIMING;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_OC_ConfigChannel(&htim9, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM9_Init 2 */
+
+  /* USER CODE END TIM9_Init 2 */
+
+}
+
+/**
   * @brief TIM11 Initialization Function
   * @param None
   * @retval None
@@ -904,7 +963,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 
     //Millis
 	if (htim == &MILLIS_TIMER_HANDLE) {
-		_millis++;
+		inc_millis();
 	}
 
 }

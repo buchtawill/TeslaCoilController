@@ -140,14 +140,28 @@ def midi_2_bin(midi_lines:str, out_path:str):
 
 if __name__ == '__main__':
     
-
-    
     if(len(sys.argv) < 2):
-        print("Usage: python midi_to_bin_f401.py <path_to_file> [file2] [...]")
-        exit(1)    
+        print("Usage: python midi_to_bin_f401.py <midi file or directory of midi files>")
+        exit(1)
         
-    for input in sys.argv[1:]:
-        if(not os.path.exists(input)):
+    if(os.path.isdir(sys.argv[1])):
+        basedir = os.path.basename(sys.argv[1])
+        for file in os.listdir(sys.argv[1]):
+            if(os.path.splitext(file)[1] == '.mid'):
+                print(f"INFO [midi_to_bin_f401] Processing {os.path.basename(file)}")
+                
+                in_path = os.path.realpath(os.path.join(sys.argv[1], file))
+                filename = os.path.splitext(os.path.basename(in_path))[0]
+                out_path = os.path.join(os.path.dirname(in_path), filename + '.bin')
+                try:
+                    csv_str = pm.midi_to_csv(in_path)
+                    midi_2_bin(csv_str, out_path)
+                except Exception as e:
+                    print("Encountered exception, ignoring...")
+                
+    # A file name was given on the command line        
+    else:
+        if(not os.path.exists(sys.argv[1])):
             print(f"ERROR Cannot find {sys.argv[1]}")
         in_path = os.path.realpath(sys.argv[1])
         filename = os.path.splitext(os.path.basename(in_path))[0]

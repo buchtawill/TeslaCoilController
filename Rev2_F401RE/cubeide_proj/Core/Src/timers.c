@@ -2,6 +2,8 @@
 #include "main.h"
 #include "midi.h"
 
+volatile uint64_t _millis = 0;
+
 extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim2;
 
@@ -17,6 +19,8 @@ static midi_timer mt1;
 static midi_timer mt2;
 
 void init_timers(){
+	_millis = 0;
+
 	mt1.is_playing = 0;
 	mt1.ptim = &htim1;
 	mt1.pwm_ch = TIM_CHANNEL_1;

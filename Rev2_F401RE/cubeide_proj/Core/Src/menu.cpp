@@ -10,6 +10,7 @@
 #include "I2C_LCD.h"
 #include "stdio.h"
 #include "menu.hpp"
+#include "timers.h"
 
 static LCD lcd;
 
@@ -66,20 +67,46 @@ typedef enum{
 }MenuState;
 
 MenuState mstate;
+static Menu mainMenu("main");
+static Menu sdModeMenu("sd");
+static Menu settingsMenu("settings");
+static Menu* currentMenu = nullptr;
 
 HAL_StatusTypeDef init_menu(){
 
     mstate = S_MENU_CHOOSE_MODE;
 
-
     initLCD(&lcd, &hi2c2, MAX_ROW_LCD, 20, 0x27, 1);
 	LCDCursorOffBlinkOff(&lcd);
 	LCDPrintAtPos(&lcd, "Hello! Use the piano", 0, 0);
 	LCDPrintAtPos(&lcd, "keys to navigate.", 0, 1);
+//    settingsMenu.addItem(MenuItem("Speaker Enable", [] { HAL_GPIO_TogglePin(SPKR_EN_GPIO_Port, SPKR_EN_Pin); }));
+//    settingsMenu.addItem(MenuItem("Version: 1.0.0", nullptr));
+//
+//    // Load SD card filenames
+//    sdModeMenu.addItem(MenuItem("tmbg.midi"));
+//
+//    mainMenu.addItem(MenuItem("Keyboard"));
+//    mainMenu.addItem(MenuItem("SD Mode", nullptr, &sdModeMenu));
+//    mainMenu.addItem(MenuItem("Settings", nullptr, &settingsMenu));
+    
+    currentMenu = &mainMenu;
+
     return HAL_OK; // Haven't implemented error checking
 }
 
-MenuRsp_t update_menu(MenuCmd cmd){
-
-    
-}
+//MenuRsp_t menu_callback(MenuCmd *cmd){
+//    // If null, don't change state, just update internal clock
+//    MenuRsp_t rsp;
+//    rsp.stat = HAL_OK;
+//    rsp.type = E_MENU_RSP_NA;
+//    rsp.p_data = NULL;
+//
+//    for(int i = 0; i < 4; i++){
+//        MenuItem *mi = &currentMenu->items[i];
+//        std::string n = mi->name;
+//        LCDPrintAtPos(&lcd, n.c_str(), 1, i);
+//    }
+//
+//	return rsp;
+//}

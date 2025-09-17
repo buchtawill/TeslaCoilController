@@ -4,3 +4,5 @@ L151_interrupter/Release/*
 .vscode\TeslaCoilController.code-workspace
 *.will
 *.stl
+*.bin
+env_int_py

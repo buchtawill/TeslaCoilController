@@ -45,6 +45,21 @@ void shutoff_all_notes();
  */
 void init_timers();
 
+// Critical section safe to get millis cnt
+extern volatile uint64_t _millis;
+static inline uint64_t get_millis(){
+	uint64_t t1, t2;
+	do {
+		t1 = _millis;
+		t2 = _millis;
+	} while (t1 != t2);
+	return t1;
+}
+
+static inline void inc_millis(){
+    _millis++;
+}
+
 #ifdef __cplusplus
 }
 #endif
