@@ -240,7 +240,7 @@ int main(void)
   while (1)
   {
 	  // Do startup routine
-	  if(HAL_GetTick() < 2400) count_led_test(coils);
+	  if(HAL_GetTick() < 4000) count_led_test(coils);
 	  else{
 		  static int first_entry = 1;
 		  if(first_entry == 1){

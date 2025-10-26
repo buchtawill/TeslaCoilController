@@ -53,11 +53,11 @@ def event_to_byte_array(event:dict, prev_time:int):
     
     return packet, dt
 
-def midi_2_bin(midi_lines:str, out_path:str):
+def midi_2_bin(midi_lines:list, out_path:str):
     """
     
     """
-    header = csv_str[0].split(',')
+    header = midi_lines[0].split(',')
     # Ticks per quarter note
     tpqn = int(header[-1])
     num_tracks = int(header[4])
@@ -66,7 +66,7 @@ def midi_2_bin(midi_lines:str, out_path:str):
     line = ''
     i = 0
     while ("Tempo" not in line):
-        line = csv_str[i]
+        line = midi_lines[i]
         i += 1
     
     # https://stackoverflow.com/questions/2038313/converting-midi-ticks-to-actual-playback-seconds
@@ -75,14 +75,14 @@ def midi_2_bin(midi_lines:str, out_path:str):
     ms_per_tick = 60000 / (bpm * tpqn)
     
     # Skip to the first on event
-    while "Note_on_c" not in csv_str[i]:
+    while "Note_on_c" not in midi_lines[i]:
         i += 1
     
     # Clean up into a new array
     list_of_events = []
-    for linenum in range(i, len(csv_str)):
+    for linenum in range(i, len(midi_lines)):
         event = {}
-        event_line = csv_str[linenum].split(',')
+        event_line = midi_lines[linenum].split(',')
         event['type']    = event_line[2].strip()
         
         if(event['type'] in SUPPORTED_EVENTS):
