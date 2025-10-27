@@ -3,10 +3,18 @@ import sys
 import py_midicsv as pm 
 import json
 import logging
+import numpy as np
+import scipy.io.wavfile as wavfile
 
-logging.basicConfig(filename='midi2bin.log', 
-                        level=logging.INFO)
-LOGGER = logging.getLogger(__name__)
+DEBUG=0
+if(DEBUG):
+    if(os.path.exists('midi2bin.log')):
+        os.remove('midi2bin.log')
+    
+    logging.basicConfig(filename='midi2bin.log', 
+                            level=logging.INFO)
+    LOGGER = logging.getLogger(__name__)
+
 
 NOTE_EVENTS = {
     'Note_on_c',
@@ -25,6 +33,69 @@ EVENT_TO_STATUS = {
     'Note_off_c'   : 0x80,
     'Pitch_bend_c' : 0xE0
 }
+
+def synthesize_wave(events, sample_rate=44100, waveform='sine', amplitude=0.3):
+    """
+    Generate a simple waveform from parsed MIDI events.
+    events: list of dicts containing 'type', 'time_ms', 'db1' (note), and 'db2' (velocity)
+    waveform: sine, square, or sawtooth
+    
+    Side Note: This function was entirely written by ChatGPT and worked on the first try, without
+    ANY modification!! 10/26/2025
+    """
+    # Determine total duration
+    duration_s = max(e['time_ms'] for e in events) / 1000.0
+    audio = np.zeros(int(sample_rate * (duration_s + 1.0)))  # +1s margin
+    
+    # Simple note frequency mapping
+    def midi_to_freq(note): return 440 * 2 ** ((note - 69) / 12)
+    
+    # Find all note-on events
+    note_ons = [e for e in events if e['type'] == 'Note_on_c' and e['db2'] > 0]
+    
+    for on in note_ons:
+        note = on['db1']
+        start_s = on['time_ms'] / 1000.0
+        velocity = on['db2'] / 127.0  # scale 0–1
+        freq = midi_to_freq(note)
+
+        # Find matching note-off
+        offs = [
+            e for e in events 
+            if e['type'] == 'Note_off_c' and e['db1'] == note and e['time_ms'] > on['time_ms']
+        ]
+        if offs:
+            end_s = offs[0]['time_ms'] / 1000.0
+        else:
+            end_s = start_s + 0.5  # fallback 0.5s note
+
+        start_idx = int(start_s * sample_rate)
+        end_idx = min(int(end_s * sample_rate), len(audio))
+
+        # Time vector
+        t = np.linspace(0, end_s - start_s, end_idx - start_idx, endpoint=False)
+
+        # Choose waveform
+        if waveform == 'sine':
+            wave = np.sin(2 * np.pi * freq * t)
+        elif waveform == 'square':
+            wave = np.sign(np.sin(2 * np.pi * freq * t))
+        elif waveform == 'saw':
+            wave = 2 * (t * freq - np.floor(0.5 + t * freq))
+        else:
+            raise ValueError("Unsupported waveform type")
+
+        # Apply amplitude envelope
+        env = np.linspace(0, 1, int(0.05 * len(t)))  # 5% fade in/out
+        envelope = np.ones_like(t)
+        envelope[:len(env)] *= env
+        envelope[-len(env):] *= env[::-1]
+
+        audio[start_idx:end_idx] += amplitude * velocity * wave * envelope
+
+    # Normalize and clip
+    audio = np.clip(audio, -1, 1)
+    return audio
 
 def event_to_byte_array(event:dict):
     """
@@ -60,6 +131,44 @@ def event_to_byte_array(event:dict):
     elif(event['type'] not in SUPPORTED_EVENTS):
         raise Exception(f"ERROR [event_to_byte_array] Unsupported event type: {event['type']}")
 
+def ms_to_time_string(ms: int) -> str:
+    minutes = ms // 60000
+    seconds = (ms % 60000) // 1000
+    milliseconds = ms % 1000
+    return f"{minutes:02d}:{seconds:02d}.{milliseconds:03d}"
+
+def check_concurrent_events(midi_events:list):
+    '''
+    Parse the list of midi events and determine if there are any times where
+    track 0 or track 2 has more than two notes at a time
+    
+    '''
+    
+    num_on = [0, 0, 0, 0]
+    for event in midi_events:
+        if(event['type'] == 'Note_on_c'):
+            num_on[event['track']] += 1
+            
+        elif(event['type'] == 'Note_off_c'):
+            num_on[event['track']] -= 1
+        
+        total_on = sum(num_on)
+        if(total_on > 4):
+            err = f"Error: More than four concurrent notes at time {ms_to_time_string(event['time_ms'])} ({num_on} @ {event['tick']})"
+            raise Exception(err)
+        
+        if(num_on[0] > 2):
+            err = f"WARNING: More than two concurrent notes on track 0 at time {ms_to_time_string(event['time_ms'])} ({num_on[0]} @ {event['time_ms']} ms)"
+            print(err)
+
+        if(num_on[2] > 2):
+            err = f"ERROR: More than two concurrent notes on track 2 at time {ms_to_time_string(event['time_ms'])} ({num_on[2]} @ {event['time_ms']} ms)"
+            raise Exception(err)
+            
+    total_on = sum(num_on)
+    if(total_on > 0):
+        raise Exception(f"Error: there is more than one note still active. Tracks: {num_on}")
+
 def process_midi_csv_header(midi_lines:list):
     '''
     Given a list of CSV lines, remove the header and calculate the first ms_per_tick
@@ -90,6 +199,26 @@ def process_midi_csv_header(midi_lines:list):
     
     return midi_lines, ms_per_tick, tpqn
 
+def sort_midi_events(list_of_dicts:list)->list:
+    
+    # Define type priority: lower number = higher priority
+    # Process note off events before note on events
+    PRIORITY = {
+        'Note_off_c': 0,
+        'Tempo': 1,
+        'Note_on_c': 2
+    }
+
+    # Sort by tick first, then by type priority
+    list_of_dicts.sort(
+        key=lambda e: (
+            e['tick'],
+            PRIORITY.get(e['type'], 99)  # default low priority if not found
+        )
+    )
+
+    return list_of_dicts
+
 def midi_lines_to_event_dict(midi_lines:list)->list[dict]:
     '''
     Process a list of comma separated values into a list of event dicts,
@@ -115,7 +244,7 @@ def midi_lines_to_event_dict(midi_lines:list)->list[dict]:
     for line in midi_lines:
         event = {}
         event_line = line.split(',')
-        event['track'] = int(event_line[0])
+        event['track'] = int(event_line[0])-1
         event['tick'] = int(event_line[1])
         event['type'] = event_line[2].strip()
             
@@ -125,15 +254,44 @@ def midi_lines_to_event_dict(midi_lines:list)->list[dict]:
             final_dicts.append(event)                
     
     # Sort by tick, with Tempo taking priority for same-tick events
-    final_dicts.sort(key=lambda e: (e['tick'], 0 if e['type'] == 'Tempo' else 1))
+    final_dicts = sort_midi_events(final_dicts)
     return final_dicts
 
-def write_bin_will_file():
+def write_bin_will_file(list_of_events:list, out_path:str):
     '''
     Support old firmware
     '''
-    pass
-
+    
+    out_path += '.will'
+    # 2 bytes of number of events, little endian
+    # 6 byte packets:
+    #     3 byte timestamp, little endian
+    #     note byte
+    #     velocity byte
+    # 0xFF at the end
+    
+    # L151 interrupter LUT starts at C1
+    # FW subtracts 12 from the note number we write
+    # E4 is midi note number 64, in FW table idx is 40, 12 is subtracted,
+    # so subtract another 12 from here
+    
+    if(len(list_of_events) > 65535):
+        raise Exception("Song too long, max supported 2^16 - 1 events")
+    with open(out_path, 'wb') as f:
+        f.write(len(list_of_events).to_bytes(2, 'little'))
+        
+        for event in list_of_events:
+            t0 = event['time_ms'] & 0xFF
+            t1 = (event['time_ms'] & 0xFF00) >> 8
+            t2 = (event['time_ms'] & 0xFF0000) >> 16
+            
+            note = event['db1'] - 12
+            velocity = event['db2']
+            
+            # track is 1 indexed in FW
+            f.write(bytearray([event['track']+1, t0, t1, t2, note, velocity]))
+        f.write(bytearray([255]))
+        
 def write_bin_new_file(list_of_events:list, out_path:str):
     '''
     List of events formatted as a list of dicts with keys:
@@ -148,6 +306,7 @@ def write_bin_new_file(list_of_events:list, out_path:str):
     }
     
     '''
+    out_path += '.bin'
     
     num_events = len(list_of_events)
     runtime = list_of_events[-1]['time_ms']
@@ -173,8 +332,9 @@ def midi_2_bin(midi_lines:list, out_path:str):
     delta_ticks = 0
     prev_tick = 0
     event_dicts = midi_lines_to_event_dict(midi_lines)
+    note_events_only = []
     
-    # Clean up into a new array of events 
+    # Clean up into a new array of events
     for i in range(len(event_dicts)):
         event = event_dicts[i]
         event_line = event['event_line']
@@ -202,22 +362,35 @@ def midi_2_bin(midi_lines:list, out_path:str):
             # If it's note on c but velocity is zero, it's actually note off c
             if(event['type'] == 'Note_on_c' and event['db2'] == 0):
                 event['type'] = 'Note_off_c'
-        
+                
+            note_events_only.append(event)
         prev_tick = event['tick']
         
-        # print('delta ticks', delta_ticks)
-        LOGGER.info("New event: ")
-        LOGGER.info(f"delta_ticks: {delta_ticks}")
-        LOGGER.info(f"Current time ms: {current_time_ms}")
-        LOGGER.info(json.dumps(event, indent=4))
-        if(delta_ticks < 0):
-            LOGGER.error(f"delta_ticks < 0: {delta_ticks} csv linenum {i}")
-        
-    write_bin_new_file(event_dicts, out_path)
-    # write_bin_will_file()
+        if(DEBUG):
+            # print('delta ticks', delta_ticks)
+            LOGGER.info("New event: ")
+            LOGGER.info(f"delta_ticks: {delta_ticks}")
+            LOGGER.info(f"Current time ms: {current_time_ms}")
+            LOGGER.info(json.dumps(event, indent=4))
+            if(delta_ticks < 0):
+                LOGGER.error(f"delta_ticks < 0: {delta_ticks} csv linenum {i}")
 
-    num_events = len(event_dicts)
-    runtime = event_dicts[-1]['time_ms']
+    # Dump all the events
+    if(DEBUG):
+        with open('debug_events.txt', 'w') as f:
+            for event in note_events_only:
+                f.write(f'{event['track']} {event['time_ms']} {event['type']}\n')
+        
+    check_concurrent_events(note_events_only)
+    write_bin_new_file(note_events_only, out_path)
+    write_bin_will_file(note_events_only, out_path)
+    audio = synthesize_wave(note_events_only, waveform='square')
+    wavfile.write(out_path+'.wav', 44100, (audio*32767).astype(np.int16))
+    
+    # write_wav_file(note_events_only, out_path)
+
+    num_events = len(note_events_only)
+    runtime = note_events_only[-1]['time_ms']
     print(f"INFO [midi_2_bin] Number of Events: {num_events}")
     print(f"INFO [midi_2_bin] Song length: {(runtime/1000):0.3f} sec")
 
@@ -228,18 +401,33 @@ if __name__ == '__main__':
         
     if(os.path.isdir(sys.argv[1])):
         basedir = os.path.basename(sys.argv[1])
+        
+        successful = []
+        failed = []
         for file in os.listdir(sys.argv[1]):
             if(os.path.splitext(file)[1] == '.mid'):
                 print(f"INFO [midi_to_bin_f401] Processing {os.path.basename(file)}")
                 
                 in_path = os.path.realpath(os.path.join(sys.argv[1], file))
                 filename = os.path.splitext(os.path.basename(in_path))[0]
-                out_path = os.path.join(os.path.dirname(in_path), filename + '.bin')
+                out_path = os.path.join(os.path.dirname(in_path), filename)
                 try:
                     csv_str = pm.midi_to_csv(in_path)
                     midi_2_bin(csv_str, out_path)
+                    successful.append(filename)
                 except Exception as e:
-                    print("WARNING: Encountered exception, ignoring...")
+                    failed.append(filename)
+                    print("WARNING: Encountered exception during processing")
+        print("========================================")
+        print("|              Summary                 |")
+        print("========================================")
+        print("Successfully processed:")
+        for win in successful:
+            print("  " + win)
+            
+        print("Failed to process:")
+        for fail in failed:
+            print("  "+fail)
                 
     # A file name was given on the command line        
     else:
@@ -247,7 +435,7 @@ if __name__ == '__main__':
             print(f"ERROR Cannot find {sys.argv[1]}")
         in_path = os.path.realpath(sys.argv[1])
         filename = os.path.splitext(os.path.basename(in_path))[0]
-        out_path = os.path.join(os.path.dirname(in_path), filename + '.bin')    
+        out_path = os.path.join(os.path.dirname(in_path), filename)    
             
         print(f"INFO [midi_to_bin_f401] Processing '{filename}'")
         # A list of strings, each string is a line of csv

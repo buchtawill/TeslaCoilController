@@ -3,6 +3,8 @@ import py_midicsv as pm
 import time as bruh
 from tkinter import filedialog as fd
 
+import test_encoded_midi
+
 #"C:\Users\bucht\OneDrive\Desktop\Tesla Coil\my_midi_list\99 red balloons.mid"
 #midiPath = "C:\\Users\\bucht\\OneDrive - Worcester Polytechnic Institute (wpi.edu)\\Projects\\Tesla Coil\\5 coils\\5 coil midi\\Dueling Banjos.mid"
 #csv_string = pm.midi_to_csv("C:\\Users\\bucht\\OneDrive - Worcester Polytechnic Institute (wpi.edu)\\Projects\\Tesla Coil\\5 coils\\5 coil midi\\Dueling Banjos.mid")

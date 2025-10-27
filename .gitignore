@@ -5,4 +5,5 @@ L151_interrupter/Release/*
 *.will
 *.stl
 *.bin
-env_int_py
+*.wav
+env_py_int
