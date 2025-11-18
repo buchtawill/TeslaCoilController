@@ -6,10 +6,10 @@
  */
 
 
+#include <menu.h>
 #include "main.h"
 #include "I2C_LCD.h"
 #include "stdio.h"
-#include "menu.hpp"
 #include "timers.h"
 
 static LCD lcd;
@@ -67,10 +67,7 @@ typedef enum{
 }MenuState;
 
 MenuState mstate;
-static Menu mainMenu("main");
-static Menu sdModeMenu("sd");
-static Menu settingsMenu("settings");
-static Menu* currentMenu = nullptr;
+
 
 HAL_StatusTypeDef init_menu(){
 
@@ -80,17 +77,6 @@ HAL_StatusTypeDef init_menu(){
 	LCDCursorOffBlinkOff(&lcd);
 	LCDPrintAtPos(&lcd, "Hello! Use the piano", 0, 0);
 	LCDPrintAtPos(&lcd, "keys to navigate.", 0, 1);
-//    settingsMenu.addItem(MenuItem("Speaker Enable", [] { HAL_GPIO_TogglePin(SPKR_EN_GPIO_Port, SPKR_EN_Pin); }));
-//    settingsMenu.addItem(MenuItem("Version: 1.0.0", nullptr));
-//
-//    // Load SD card filenames
-//    sdModeMenu.addItem(MenuItem("tmbg.midi"));
-//
-//    mainMenu.addItem(MenuItem("Keyboard"));
-//    mainMenu.addItem(MenuItem("SD Mode", nullptr, &sdModeMenu));
-//    mainMenu.addItem(MenuItem("Settings", nullptr, &settingsMenu));
-    
-    currentMenu = &mainMenu;
 
     return HAL_OK; // Haven't implemented error checking
 }

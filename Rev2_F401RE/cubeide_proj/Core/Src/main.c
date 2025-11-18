@@ -27,7 +27,6 @@
 #include "stdio.h"
 #include "timers.h"
 #include "midi.h"
-#include "menu.hpp"
 
 /* USER CODE END Includes */
 

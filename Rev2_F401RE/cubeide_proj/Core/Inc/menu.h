@@ -13,8 +13,7 @@
 
 #ifndef INC_MENU_H_
 #define INC_MENU_H_
-#include <string>
-#include <functional>
+#include "stm32f4xx_hal.h"
 
 /**
  * Define command types from main to menu
@@ -61,35 +60,5 @@ HAL_StatusTypeDef menu_update_keyboard_msg(uint16_t time_left);
  */
 MenuRsp_t menu_callback(MenuCmd *cmd);
 
-class Menu; 
-
-class MenuItem {
-public:
-	using Action = void(*)();
-
- 	std::string name;
-	Menu* submenu;
- 	Action action;
-
- 	MenuItem(const std::string& n, Action a = nullptr, Menu* subm = nullptr)
-		: name(name), action(a), submenu(subm){}
-
-	bool hasAction() const { return action != nullptr; }
-    bool hasSubmenu() const { return submenu != nullptr; }
-    void trigger() { if (action) action(); }
-
-};
-
-class Menu {
-public:
-	std::string title;
-//	std::vector<MenuItem> items;
-	Menu* parent; // if submenu
-
-	Menu(const std::string& t, Menu* p = nullptr)
-        : title(t), parent(p) {}
-
-//    void addItem(const MenuItem& item) { items.push_back(item); }
-};
 
 #endif /* INC_MENU_H_ */
