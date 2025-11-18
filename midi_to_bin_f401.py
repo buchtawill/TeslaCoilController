@@ -6,7 +6,7 @@ import logging
 import numpy as np
 import scipy.io.wavfile as wavfile
 
-DEBUG=0
+DEBUG=1
 if(DEBUG):
     if(os.path.exists('midi2bin.log')):
         os.remove('midi2bin.log')
@@ -137,6 +137,13 @@ def ms_to_time_string(ms: int) -> str:
     milliseconds = ms % 1000
     return f"{minutes:02d}:{seconds:02d}.{milliseconds:03d}"
 
+def seconds_to_time_string(seconds: float) -> str:
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    seconds = seconds % 60
+    milliseconds = int((seconds - int(seconds)) * 1000)
+    return f"{hours:02d}h {minutes:02d}m {int(seconds):02d}.{milliseconds:03d}s"
+
 def check_concurrent_events(midi_events:list):
     '''
     Parse the list of midi events and determine if there are any times where
@@ -144,8 +151,19 @@ def check_concurrent_events(midi_events:list):
     
     '''
     
+    # Error if:
+    #  more than 4 concurrent notes across all tracks
+    #  num_on[3] > 1
+    #  num_on[2] + num_on[3] > 2
+    #  num_on[1] + num_on[2] + num_on[3] > 3
+    # Warning if:
+    #  more than two notes on any track at a time
+    
+    
     num_on = [0, 0, 0, 0]
     for event in midi_events:
+        time_human = ms_to_time_string(event['time_ms'])
+        tick = event['tick']
         if(event['type'] == 'Note_on_c'):
             num_on[event['track']] += 1
             
@@ -154,16 +172,26 @@ def check_concurrent_events(midi_events:list):
         
         total_on = sum(num_on)
         if(total_on > 4):
-            err = f"Error: More than four concurrent notes at time {ms_to_time_string(event['time_ms'])} ({num_on} @ {event['tick']})"
+            err = f"Error: More than four concurrent notes at time {time_human} ({num_on} @ {tick})"
             raise Exception(err)
         
-        if(num_on[0] > 2):
-            err = f"WARNING: More than two concurrent notes on track 0 at time {ms_to_time_string(event['time_ms'])} ({num_on[0]} @ {event['time_ms']} ms)"
-            print(err)
-
-        if(num_on[2] > 2):
-            err = f"ERROR: More than two concurrent notes on track 2 at time {ms_to_time_string(event['time_ms'])} ({num_on[2]} @ {event['time_ms']} ms)"
+        # Sum of notes to the right
+        error_case = (num_on[3] > 1) or ((num_on[3] + num_on[2]) > 2) or ((num_on[3] + num_on[2] + num_on[1]) > 3)
+        if(error_case):
+            err = f"ERROR: Too many notes {num_on} at time {time_human} ({num_on[2]} @ {tick})"
             raise Exception(err)
+        
+        if(max(num_on) > 2):
+            idx = num_on.index(max(num_on))
+            err = f"WARNING: More than two concurrent notes on track {idx} at time {time_human} ({num_on[0]} @ {tick})"
+            print(err)
+            
+        # if(num_on[2] > 2):
+        #     err = f"ERROR: More than two concurrent notes on track 2 at time {time_human} ({num_on[2]} @ {tick})"
+        #     raise Exception(err)
+        
+        
+
             
     total_on = sum(num_on)
     if(total_on > 0):
@@ -323,9 +351,28 @@ def write_bin_new_file(list_of_events:list, out_path:str):
         # End of song
         f.write(0xF0.to_bytes(1, signed=False))
 
+def duplicate_event(a, b)->bool:
+    atick = int(a['tick'])
+    btick = int(b['tick'])
+    
+    ach = a['channel']
+    bch = b['channel']
+    
+    atype = a['type']
+    btype = b['type']
+    
+    adb1  = a['db1']
+    bdb1  = b['db1']
+    
+    adb2  = a['db2']
+    bdb2  = b['db2']
+    
+    return (atick==btick and ach==bch and atype==btype and adb1==bdb1 and adb2==bdb2)
+    
+
 def midi_2_bin(midi_lines:list, out_path:str):
     """
-    
+    Return the run time of the song in seconds
     """
     midi_lines, ms_per_tick, tpqn = process_midi_csv_header(midi_lines)
     current_time_ms = 0
@@ -363,6 +410,14 @@ def midi_2_bin(midi_lines:list, out_path:str):
             if(event['type'] == 'Note_on_c' and event['db2'] == 0):
                 event['type'] = 'Note_off_c'
                 
+            # Check if it's a duplicate event, if so, drop.
+            # if(i > 0):
+            #     prev_type = event_dicts[i-1]['type']
+            #     prev_tick = event_dicts[i-1]['tick']
+            #     prev_ch   = int(event_dicts[i-1]['channel'])
+            #     if((event['type'] == prev_type) and (event['tick'] == prev_tick) and (event['channel'] == prev_ch)):
+            #         pass
+                
             note_events_only.append(event)
         prev_tick = event['tick']
         
@@ -393,6 +448,8 @@ def midi_2_bin(midi_lines:list, out_path:str):
     runtime = note_events_only[-1]['time_ms']
     print(f"INFO [midi_2_bin] Number of Events: {num_events}")
     print(f"INFO [midi_2_bin] Song length: {(runtime/1000):0.3f} sec")
+    
+    return runtime / 1000
 
 if __name__ == '__main__':
     if(len(sys.argv) < 2):
@@ -404,6 +461,7 @@ if __name__ == '__main__':
         
         successful = []
         failed = []
+        total_runtime = 0
         for file in os.listdir(sys.argv[1]):
             if(os.path.splitext(file)[1] == '.mid'):
                 print(f"INFO [midi_to_bin_f401] Processing {os.path.basename(file)}")
@@ -413,13 +471,13 @@ if __name__ == '__main__':
                 out_path = os.path.join(os.path.dirname(in_path), filename)
                 try:
                     csv_str = pm.midi_to_csv(in_path)
-                    midi_2_bin(csv_str, out_path)
+                    total_runtime += midi_2_bin(csv_str, out_path)
                     successful.append(filename)
                 except Exception as e:
                     failed.append(filename)
                     print("WARNING: Encountered exception during processing")
         print("========================================")
-        print("|              Summary                 |")
+        print("=              Summary                 =")
         print("========================================")
         print("Successfully processed:")
         for win in successful:
@@ -428,6 +486,8 @@ if __name__ == '__main__':
         print("Failed to process:")
         for fail in failed:
             print("  "+fail)
+        
+        print(f"Total runtime: {total_runtime} seconds ({seconds_to_time_string(total_runtime)})")
                 
     # A file name was given on the command line        
     else:
@@ -441,4 +501,3 @@ if __name__ == '__main__':
         # A list of strings, each string is a line of csv
         csv_str = pm.midi_to_csv(in_path)
         midi_2_bin(csv_str, out_path)
-    
