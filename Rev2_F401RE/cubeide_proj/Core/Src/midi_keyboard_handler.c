@@ -11,16 +11,16 @@
 
 MidiRecvState midi_recv_state = MIDI_RECV_STATUS;
 
-uint8_t next_midi_byte;
-MidiMsg_t next_midi_msg;
+static uint8_t next_midi_byte;
+static MidiMsg_t next_midi_msg;
 
-MidiMsg_t midi_msg_q[MIDI_MSG_Q_LEN];
-uint16_t midi_q_head = 0;
-uint16_t midi_q_tail = 0;
-uint8_t num_in_midi_msg_q = 0;
+static MidiMsg_t midi_msg_q[MIDI_MSG_Q_LEN];
+static uint16_t midi_q_head = 0;
+static uint16_t midi_q_tail = 0;
+static uint8_t num_in_midi_msg_q = 0;
 
 // Flag to indicate if a message has been lost 
-uint8_t midi_msg_lost = 0;
+static uint8_t midi_msg_lost = 0;
 
 // This function is called within the UART ISR and hence cannot be overwritten
 void midi_enq_and_reset_state(){

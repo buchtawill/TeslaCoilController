@@ -48,6 +48,13 @@ HAL_StatusTypeDef menu_update_keyboard_msg(uint16_t time_left){
     return HAL_OK; // Haven't implemented error checking
 }
 
+HAL_StatusTypeDef menu_print_on_time(uint16_t on_time){
+    char buf[16];
+    snprintf(buf, 16, "Tx1: %3uus", on_time);
+    LCDPrintAtPos(&lcd, buf, 0, 3);
+
+}
+
 
 /*----------------------------------------------------------------------------/
 Menu functionality - project specific.

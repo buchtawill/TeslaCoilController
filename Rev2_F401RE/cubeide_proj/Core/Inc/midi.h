@@ -55,7 +55,7 @@ typedef struct MidiMsg{
     MidiSrcId src_id;
 } MidiMsg_t;
 
-#define MIDI_MSG_Q_LEN     8 // max num pending MidiMsg_t
+#define MIDI_MSG_Q_LEN     16 // max num pending MidiMsg_t
 #define MIDI_MSG_Q_SIZE    (MIDI_MSG_Q_LEN*sizeof(MidiMsg_t))
 
 //------------------------------------------
@@ -141,6 +141,16 @@ static inline uint8_t calc_midi_msg_tot_num_bytes(uint8_t status_byte){
         default:
             return 0;  // Invalid or unsupported message
     }
+}
+
+/**
+ * Copy all fields of src into dst
+ */
+static inline void midi_msg_cpy(MidiMsg_t *dst, MidiMsg_t *src){
+    dst->db1 = src->db1;
+    dst->db2 = src->db2;
+    dst->msg_num_bytes = src->msg_num_bytes;
+    dst->status = src->status;
 }
 
 #ifdef __cplusplus

@@ -47,6 +47,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
 
 I2C_HandleTypeDef hi2c2;
 
@@ -56,7 +57,9 @@ SPI_HandleTypeDef hspi1;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim5;
 TIM_HandleTypeDef htim9;
+TIM_HandleTypeDef htim10;
 TIM_HandleTypeDef htim11;
 
 UART_HandleTypeDef huart1;
@@ -71,11 +74,19 @@ FILINFO   fno;
 DIR       dir;
 LCD       lcd;
 
+uint16_t tx1_pulse_width = 1, prev_tx1_width = 0;
+uint16_t tx2_pulse_width = 1, prev_tx2_width = 0;
+
+volatile uint16_t adc_dma_results[4];
+const int         adcChannelCount = sizeof(adc_dma_results) / sizeof(adc_dma_results[0]);
+volatile uint8_t  adc_conv_complete = 0; //set by callback
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_I2C2_Init(void);
 static void MX_SDIO_SD_Init(void);
@@ -87,6 +98,8 @@ static void MX_USART6_UART_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM11_Init(void);
 static void MX_TIM9_Init(void);
+static void MX_TIM5_Init(void);
+static void MX_TIM10_Init(void);
 /* USER CODE BEGIN PFP */
 
 
@@ -128,6 +141,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_ADC1_Init();
   MX_I2C2_Init();
   MX_SDIO_SD_Init();
@@ -140,6 +154,8 @@ int main(void)
   MX_SPI1_Init();
   MX_TIM11_Init();
   MX_TIM9_Init();
+  MX_TIM5_Init();
+  MX_TIM10_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -202,10 +218,15 @@ int main(void)
 	HAL_GPIO_WritePin(RELAY_GPIO_Port, RELAY_Pin, GPIO_PIN_RESET);
 
 	// IF1 is TIM1 Ch1 and TIM2 Ch1
-	htim1.Instance->CCR1 = 0;
-	htim2.Instance->CCR2 = 0;
+  // IF2 is TIM5 Ch1 and TIM10 Ch1
+  setTimerFrequencyPulseWidth(&htim1, 0, 0, 0);
+  setTimerFrequencyPulseWidth(&htim2, 0, 0, 0);
+  setTimerFrequencyPulseWidth(&htim5, 0, 0, 0);
+  setTimerFrequencyPulseWidth(&htim10, 0, 0, 0);
 	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Start(&htim10, TIM_CHANNEL_1);
 
 	// main loop will receive midi messages and handle them accordingly
 	// If in choose mode, interpret midi messages as up/down/enter buttons
@@ -215,6 +236,7 @@ int main(void)
 	uint32_t led_start_time = 0;
 	uint64_t t_cooldown_start = 0;
 	uint64_t t_keyboard_start = 0;
+  uint64_t prev_adc_time = 0;
 
 	int64_t cooldown_ms_left = 0;
 	int64_t keyboard_ms_left = 0;
@@ -262,20 +284,23 @@ int main(void)
 			break;
 		////////////////////////////////////////////////////////////////////
 		case S_PLAYING_KEYBOARD:
-			keyboard_ms_left = 20000 - (get_millis() - t_keyboard_start);
-			keyboard_sec_left = 1 + keyboard_ms_left / 1000;
-			if(keyboard_sec_left != prev_keyboard_sec_left){
-				prev_keyboard_sec_left = keyboard_sec_left;
-				menu_update_keyboard_msg(keyboard_sec_left);
-			}
+//			keyboard_ms_left = 30000 - (get_millis() - t_keyboard_start);
+//			keyboard_sec_left = 1 + keyboard_ms_left / 1000;
+//			if(keyboard_sec_left != prev_keyboard_sec_left){
+//				prev_keyboard_sec_left = keyboard_sec_left;
+//				menu_update_keyboard_msg(keyboard_sec_left);
+//			}
 
 			if(p_msg != NULL){
-				handle_midi_output_msg(p_msg);
+				MidiMsg_t *next_stored_msg = handle_midi_output_msg(p_msg);
+				while(next_stored_msg != NULL){
+					next_stored_msg = handle_midi_output_msg(next_stored_msg);
+				}
 			}
-			if(keyboard_ms_left <= 0){
-				shutoff_all_notes();
-				top_state = S_PRE_COOLDOWN;
-			}
+//			if(keyboard_ms_left <= 0){
+//				shutoff_all_notes();
+//				top_state = S_PRE_COOLDOWN;
+//			}
 			break;
 		////////////////////////////////////////////////////////////////////
 		case S_CHOOSE_SD_SONG:
@@ -290,9 +315,29 @@ int main(void)
 
     	// GPIO_PinState val = HAL_GPIO_ReadPin(SPKR_EN_BTN_GPIO_Port, SPKR_EN_BTN_Pin);
 
+      // Turn it off 25 ms after receiving a UART message
     	if((get_millis() - led_start_time) > 25){
     		HAL_GPIO_WritePin(LED_HEARTBEAT_GPIO_Port, LED_HEARTBEAT_Pin, GPIO_PIN_RESET);
     	}
+
+      // Start more ADC conversions
+      if((get_millis() - prev_adc_time) > 50){
+        prev_adc_time = get_millis();
+        HAL_ADC_Stop_DMA(&hadc1);  // Stop the DMA to ensure it resets
+        HAL_ADC_Start_DMA(&hadc1, (uint32_t*) adc_dma_results, adcChannelCount);
+      }
+      if(adc_conv_complete){
+    	  adc_conv_complete = 0;
+        
+        prev_tx1_width = tx1_pulse_width;
+        prev_tx2_width = tx2_pulse_width;
+    	  // 0-127
+    	  tx1_pulse_width = adc_dma_results[1] >> 1;
+    	  tx2_pulse_width = adc_dma_results[1] >> 1;
+
+        if(tx1_pulse_width != prev_tx1_width)menu_print_on_time(tx1_pulse_width);
+      }
+
 
         // Test if the relay works
 //    	static uint64_t relay_time = 0;
@@ -375,16 +420,16 @@ static void MX_ADC1_Init(void)
   */
   hadc1.Instance = ADC1;
   hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
-  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
-  hadc1.Init.ScanConvMode = DISABLE;
+  hadc1.Init.Resolution = ADC_RESOLUTION_8B;
+  hadc1.Init.ScanConvMode = ENABLE;
   hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.NbrOfConversion = 4;
   hadc1.Init.DMAContinuousRequests = DISABLE;
-  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     Error_Handler();
@@ -392,9 +437,36 @@ static void MX_ADC1_Init(void)
 
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
-  sConfig.Channel = ADC_CHANNEL_VBAT;
+  sConfig.Channel = ADC_CHANNEL_8;
   sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  sConfig.SamplingTime = ADC_SAMPLETIME_15CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_11;
+  sConfig.Rank = 2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_12;
+  sConfig.Rank = 3;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_13;
+  sConfig.Rank = 4;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -640,6 +712,55 @@ static void MX_TIM2_Init(void)
 }
 
 /**
+  * @brief TIM5 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM5_Init(void)
+{
+
+  /* USER CODE BEGIN TIM5_Init 0 */
+
+  /* USER CODE END TIM5_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM5_Init 1 */
+
+  /* USER CODE END TIM5_Init 1 */
+  htim5.Instance = TIM5;
+  htim5.Init.Prescaler = 0;
+  htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim5.Init.Period = 0;
+  htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_PWM_Init(&htim5) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim5, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim5, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM5_Init 2 */
+
+  /* USER CODE END TIM5_Init 2 */
+  HAL_TIM_MspPostInit(&htim5);
+
+}
+
+/**
   * @brief TIM9 Initialization Function
   * @param None
   * @retval None
@@ -691,6 +812,52 @@ static void MX_TIM9_Init(void)
   /* USER CODE BEGIN TIM9_Init 2 */
 
   /* USER CODE END TIM9_Init 2 */
+
+}
+
+/**
+  * @brief TIM10 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM10_Init(void)
+{
+
+  /* USER CODE BEGIN TIM10_Init 0 */
+
+  /* USER CODE END TIM10_Init 0 */
+
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM10_Init 1 */
+
+  /* USER CODE END TIM10_Init 1 */
+  htim10.Instance = TIM10;
+  htim10.Init.Prescaler = 0;
+  htim10.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim10.Init.Period = 0;
+  htim10.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim10.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim10) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim10) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim10, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM10_Init 2 */
+
+  /* USER CODE END TIM10_Init 2 */
+  HAL_TIM_MspPostInit(&htim10);
 
 }
 
@@ -839,6 +1006,22 @@ static void MX_USART6_UART_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA2_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA2_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -932,6 +1115,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 		handle_keyboard_rx_it();
         keyboard_start_rx_it();
     }
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
+	adc_conv_complete = 1;
 }
 
 /**
